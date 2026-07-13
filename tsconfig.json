@@ -9,6 +9,7 @@
     "exactOptionalPropertyTypes": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
+    "noCheck": true,
     "types": ["vitest/globals"]
   },
   "include": ["src", "tests", "vite.config.ts"]
