@@ -16,30 +16,46 @@ const POSITION_ITEMS = [
 ];
 
 const POSITION_ALIASES: Record<string, string> = {
-  '左上': 'top-left', '右上': 'top-right', '左下': 'bottom-left', '右下': 'bottom-right',
-  '中央': 'center', 'ステージ全体': 'full-stage',
+  左上: 'top-left', 右上: 'top-right', 左下: 'bottom-left', 右下: 'bottom-right',
+  中央: 'center', ステージ全体: 'full-stage',
   'top-left': 'top-left', 'top-right': 'top-right', 'bottom-left': 'bottom-left',
   'bottom-right': 'bottom-right', center: 'center', 'full-stage': 'full-stage'
 };
 
+const loadingPromises = new Map<string, Promise<void>>();
+
 function normalizePosition(value: unknown): string {
-  const raw = String(value ?? 'bottom-right');
-  return POSITION_ALIASES[raw] ?? 'bottom-right';
+  return POSITION_ALIASES[String(value ?? 'bottom-right')] ?? 'bottom-right';
 }
 
-const loadScript = (src: string) =>
-  new Promise<void>((resolve, reject) => {
-    const existing = Array.from(document.scripts).find((script) => script.src === src);
-    if (existing) {
+export function loadScript(src: string): Promise<void> {
+  const active = loadingPromises.get(src);
+  if (active) return active;
+
+  const existing = Array.from(document.scripts).find((script) => script.src === src);
+  if (existing?.dataset.tmposeLoaded === 'true') return Promise.resolve();
+
+  const promise = new Promise<void>((resolve, reject) => {
+    const script = existing ?? document.createElement('script');
+    const handleLoad = () => {
+      script.dataset.tmposeLoaded = 'true';
       resolve();
-      return;
+    };
+    const handleError = () => {
+      loadingPromises.delete(src);
+      reject(new Error('TMPose: Failed to load script: ' + src));
+    };
+    script.addEventListener('load', handleLoad, {once: true});
+    script.addEventListener('error', handleError, {once: true});
+    if (!existing) {
+      script.src = src;
+      document.head.appendChild(script);
     }
-    const script = document.createElement('script');
-    script.src = src;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('TMPose: Failed to load script: ' + src));
-    document.head.appendChild(script);
   });
+
+  loadingPromises.set(src, promise);
+  return promise;
+}
 
 export class TMPoseExtension {
   [key: string]: any;
@@ -66,48 +82,36 @@ export class TMPoseExtension {
   }
 
   getInfo() {
-    const blockTypeMap = Scratch.BlockType;
-    const argumentTypeMap = Scratch.ArgumentType;
     return {
       id: EXTENSION_ID,
       name: Scratch.translate(definitions.extensionName),
       blocks: definitions.blocks.map((block: any) => ({
         opcode: block.opcode,
-        blockType: blockTypeMap[block.blockType],
+        blockType: Scratch.BlockType[block.blockType],
         text: Scratch.translate(block.text),
         ...(block.disableMonitor ? {disableMonitor: true} : {}),
         ...(block.arguments ? {
-          arguments: Object.fromEntries(
-            Object.entries(block.arguments).map(([name, argument]: [string, any]) => [
-              name,
-              {
-                type: argumentTypeMap[argument.type],
-                defaultValue: argument.defaultValue,
-                ...(argument.menu ? {menu: argument.menu} : {})
-              }
-            ])
-          )
+          arguments: Object.fromEntries(Object.entries(block.arguments).map(([name, argument]: [string, any]) => [
+            name,
+            {
+              type: Scratch.ArgumentType[argument.type],
+              defaultValue: argument.defaultValue,
+              ...(argument.menu ? {menu: argument.menu} : {})
+            }
+          ]))
         } : {})
       })),
       menus: {
         positionMenu: {
           acceptReporters: true,
-          items: POSITION_ITEMS.map((item) => ({
-            text: Scratch.translate(item.text),
-            value: item.value
-          }))
+          items: POSITION_ITEMS.map((item) => ({text: Scratch.translate(item.text), value: item.value}))
         }
       }
     };
   }
 
-  versionReporter() {
-    return VERSION;
-  }
-
-  setLastError(error) {
-    this.lastError = String(error && error.message ? error.message : error);
-  }
+  versionReporter() { return VERSION; }
+  setLastError(error) { this.lastError = String(error?.message ?? error); }
 
   setModelURL(args) {
     this.modelURL = String(args.URL || '').trim();
@@ -120,9 +124,7 @@ export class TMPoseExtension {
   async ensureLibrariesLoaded() {
     await loadScript(TFJS_URL);
     await loadScript(TMPOSE_URL);
-    if (typeof tmPose === 'undefined') {
-      throw new Error('TMPose: Teachable Machine Pose could not be loaded.');
-    }
+    if (typeof tmPose === 'undefined') throw new Error('TMPose: Teachable Machine Pose could not be loaded.');
   }
 
   async startCamera() {
@@ -142,7 +144,7 @@ export class TMPoseExtension {
       this.attachPreviewToStage();
       if (!this.loopStarted) {
         this.loopStarted = true;
-        this.loop();
+        void this.loop();
       }
     } catch (error) {
       this.setLastError(error);
@@ -158,13 +160,11 @@ export class TMPoseExtension {
         return;
       }
       const video = this.webcam.webcam;
-      if (video && video.srcObject) {
+      if (video?.srcObject) {
         video.srcObject.getTracks().forEach((track) => track.stop());
         video.srcObject = null;
       }
-      if (this.previewCanvas && this.previewCanvas.parentNode) {
-        this.previewCanvas.parentNode.removeChild(this.previewCanvas);
-      }
+      this.previewCanvas?.parentNode?.removeChild(this.previewCanvas);
       this.previewCanvas = null;
       this.previewStageElement = null;
       this.webcam = null;
@@ -179,16 +179,12 @@ export class TMPoseExtension {
     }
   }
 
-  isCameraRunning() {
-    return this.cameraRunning;
-  }
+  isCameraRunning() { return this.cameraRunning; }
 
   showPreview() {
     try {
       this.previewVisible = true;
-      if (!this.webcam || !this.webcam.canvas) {
-        throw new Error('TMPose: Start the camera before showing the preview.');
-      }
+      if (!this.webcam?.canvas) throw new Error('TMPose: Start the camera before showing the preview.');
       this.attachPreviewToStage();
       this.previewCanvas.style.display = 'block';
     } catch (error) {
@@ -202,12 +198,10 @@ export class TMPoseExtension {
     if (this.previewCanvas) this.previewCanvas.style.display = 'none';
   }
 
-  isPreviewVisible() {
-    return this.previewVisible;
-  }
+  isPreviewVisible() { return this.previewVisible; }
 
   setPreviewOpacity(args) {
-    let opacity = Number(args.OPACITY);
+    let opacity = args.OPACITY === '' ? 0.6 : Number(args.OPACITY);
     if (Number.isNaN(opacity)) opacity = 0.6;
     this.previewOpacity = Math.max(0, Math.min(1, opacity));
     if (this.previewCanvas) this.previewCanvas.style.opacity = String(this.previewOpacity);
@@ -225,10 +219,7 @@ export class TMPoseExtension {
       this.lastError = '';
       const startedAt = performance.now();
       await this.ensureLibrariesLoaded();
-      this.model = await tmPose.load(
-        this.modelURL + 'model.json',
-        this.modelURL + 'metadata.json'
-      );
+      this.model = await tmPose.load(this.modelURL + 'model.json', this.modelURL + 'metadata.json');
       this.modelLoadMs = Math.round(performance.now() - startedAt);
     } catch (error) {
       this.setLastError(error);
@@ -236,9 +227,7 @@ export class TMPoseExtension {
     }
   }
 
-  isModelLoaded() {
-    return Boolean(this.model);
-  }
+  isModelLoaded() { return Boolean(this.model); }
 
   async startPredict() {
     try {
@@ -248,7 +237,7 @@ export class TMPoseExtension {
       this.predicting = true;
       if (!this.loopStarted) {
         this.loopStarted = true;
-        this.loop();
+        void this.loop();
       }
     } catch (error) {
       this.setLastError(error);
@@ -263,9 +252,7 @@ export class TMPoseExtension {
     this.predictions = {};
   }
 
-  isPredicting() {
-    return this.predicting;
-  }
+  isPredicting() { return this.predicting; }
 
   findStageElement() {
     const editorStage =
@@ -275,15 +262,16 @@ export class TMPoseExtension {
       document.querySelector('[class*="stage-wrapper_stage-wrapper"]');
     if (editorStage) return editorStage;
     const stageCanvas = this.findLikelyStageCanvas();
-    if (stageCanvas && stageCanvas.parentElement) return stageCanvas.parentElement;
+    if (stageCanvas.parentElement) return stageCanvas.parentElement;
     throw new Error('TMPose: TurboWarp stage element was not found.');
   }
 
   findLikelyStageCanvas() {
     const webcamCanvas = this.webcam?.canvas ?? null;
-    const candidates = Array.from(document.querySelectorAll('canvas'))
-      .filter((canvas) => canvas !== webcamCanvas)
-      .filter((canvas) => canvas !== this.previewCanvas)
+    const allCanvases = Array.from(document.querySelectorAll('canvas'))
+      .filter((canvas) => canvas !== webcamCanvas && canvas !== this.previewCanvas);
+
+    const visibleCandidates = allCanvases
       .map((canvas) => {
         const rect = canvas.getBoundingClientRect();
         const style = window.getComputedStyle(canvas);
@@ -294,10 +282,16 @@ export class TMPoseExtension {
       .filter((item) => item.style.visibility !== 'hidden')
       .filter((item) => Number(item.style.opacity || 1) !== 0)
       .sort((left, right) => right.area - left.area);
-    if (candidates.length === 0) {
-      throw new Error('TMPose: No likely stage canvas was found. The editor or packager DOM may be unsupported.');
-    }
-    return candidates[0].canvas;
+
+    if (visibleCandidates[0]) return visibleCandidates[0].canvas;
+
+    const fallbackCandidates = allCanvases
+      .map((canvas) => ({canvas, area: canvas.width * canvas.height}))
+      .filter((item) => item.canvas.width >= 200 && item.canvas.height >= 150)
+      .sort((left, right) => right.area - left.area);
+
+    if (fallbackCandidates[0]) return fallbackCandidates[0].canvas;
+    throw new Error('TMPose: No likely stage canvas was found. The editor or packager DOM may be unsupported.');
   }
 
   attachPreviewToStage() {
@@ -310,66 +304,34 @@ export class TMPoseExtension {
     const computed = window.getComputedStyle(stage);
     if (computed.position === 'static') stage.style.position = 'relative';
     stage.style.overflow = 'hidden';
-    canvas.style.position = 'absolute';
-    canvas.style.zIndex = '999';
-    canvas.style.pointerEvents = 'none';
-    canvas.style.border = '2px solid rgba(255, 255, 255, 0.7)';
-    canvas.style.borderRadius = '8px';
-    canvas.style.background = '#000';
-    canvas.style.opacity = String(this.previewOpacity);
-    canvas.style.display = this.previewVisible ? 'block' : 'none';
-    canvas.style.boxSizing = 'border-box';
+    Object.assign(canvas.style, {
+      position: 'absolute', zIndex: '999', pointerEvents: 'none',
+      border: '2px solid rgba(255, 255, 255, 0.7)', borderRadius: '8px',
+      background: '#000', opacity: String(this.previewOpacity),
+      display: this.previewVisible ? 'block' : 'none', boxSizing: 'border-box'
+    });
     if (canvas.parentNode !== stage) stage.appendChild(canvas);
     this.updatePreviewStyle();
-    const rect = canvas.getBoundingClientRect();
-    if (this.previewVisible && (rect.width === 0 || rect.height === 0)) {
-      throw new Error('TMPose: Preview canvas was attached but has zero size.');
-    }
   }
 
   updatePreviewStyle() {
     const canvas = this.previewCanvas;
     if (!canvas) throw new Error('TMPose: Start the camera before positioning the preview.');
-    canvas.style.left = '';
-    canvas.style.right = '';
-    canvas.style.top = '';
-    canvas.style.bottom = '';
-    canvas.style.transform = '';
-    canvas.style.objectFit = '';
-    canvas.style.width = '35%';
-    canvas.style.height = 'auto';
-    canvas.style.borderRadius = '8px';
+    Object.assign(canvas.style, {
+      left: '', right: '', top: '', bottom: '', transform: '', objectFit: '',
+      width: '35%', height: 'auto', borderRadius: '8px'
+    });
     switch (this.previewPosition) {
-      case 'top-left':
-        canvas.style.left = '8px';
-        canvas.style.top = '8px';
-        break;
-      case 'top-right':
-        canvas.style.right = '8px';
-        canvas.style.top = '8px';
-        break;
-      case 'bottom-left':
-        canvas.style.left = '8px';
-        canvas.style.bottom = '8px';
-        break;
+      case 'top-left': canvas.style.left = '8px'; canvas.style.top = '8px'; break;
+      case 'top-right': canvas.style.right = '8px'; canvas.style.top = '8px'; break;
+      case 'bottom-left': canvas.style.left = '8px'; canvas.style.bottom = '8px'; break;
       case 'center':
-        canvas.style.left = '50%';
-        canvas.style.top = '50%';
-        canvas.style.transform = 'translate(-50%, -50%)';
-        break;
+        canvas.style.left = '50%'; canvas.style.top = '50%';
+        canvas.style.transform = 'translate(-50%, -50%)'; break;
       case 'full-stage':
-        canvas.style.left = '0';
-        canvas.style.top = '0';
-        canvas.style.width = '100%';
-        canvas.style.height = '100%';
-        canvas.style.objectFit = 'cover';
-        canvas.style.borderRadius = '0';
-        break;
-      case 'bottom-right':
-      default:
-        canvas.style.right = '8px';
-        canvas.style.bottom = '8px';
-        break;
+        canvas.style.left = '0'; canvas.style.top = '0'; canvas.style.width = '100%';
+        canvas.style.height = '100%'; canvas.style.objectFit = 'cover'; canvas.style.borderRadius = '0'; break;
+      default: canvas.style.right = '8px'; canvas.style.bottom = '8px';
     }
   }
 
@@ -398,49 +360,30 @@ export class TMPoseExtension {
     } catch (error) {
       this.setLastError(error);
     }
-    requestAnimationFrame(() => this.loop());
+    requestAnimationFrame(() => void this.loop());
   }
 
-  currentPoseReporter() {
-    return this.currentPoseName;
-  }
-
-  scoreReporter() {
-    return Math.round(this.score * 100) / 100;
-  }
+  currentPoseReporter() { return this.currentPoseName; }
+  scoreReporter() { return Math.round(this.score * 100) / 100; }
 
   poseScoreReporter(args) {
-    const name = String(args.NAME || '');
-    const value = this.predictions[name] || 0;
-    return Math.round(value * 100) / 100;
+    return Math.round((this.predictions[String(args.NAME || '')] || 0) * 100) / 100;
   }
 
   isPose(args) {
-    const name = String(args.NAME || '');
-    return this.currentPoseName === name && this.score >= 0.75;
+    return (this.predictions[String(args.NAME || '')] || 0) >= 0.75;
   }
 
   isPoseWithThreshold(args) {
     const name = String(args.NAME || '');
-    let threshold = Number(args.THRESHOLD);
+    let threshold = args.THRESHOLD === '' ? 0.75 : Number(args.THRESHOLD);
     if (Number.isNaN(threshold)) threshold = 0.75;
     threshold = Math.max(0, Math.min(1, threshold));
-    return this.currentPoseName === name && this.score >= threshold;
+    return (this.predictions[name] || 0) >= threshold;
   }
 
-  cameraMsReporter() {
-    return this.cameraMs;
-  }
-
-  modelLoadMsReporter() {
-    return this.modelLoadMs;
-  }
-
-  firstPredictMsReporter() {
-    return this.firstPredictMs;
-  }
-
-  lastErrorReporter() {
-    return this.lastError;
-  }
+  cameraMsReporter() { return this.cameraMs; }
+  modelLoadMsReporter() { return this.modelLoadMs; }
+  firstPredictMsReporter() { return this.firstPredictMs; }
+  lastErrorReporter() { return this.lastError; }
 }
