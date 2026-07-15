@@ -16,8 +16,12 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
-      - name: Test
-        run: npm run test
+      - name: Test lifecycle
+        run: npm run test -- -t "stops|supports|does not|invalidates"
+      - name: Test DOM detection
+        run: npm run test -- -t "finds|throws|allows"
+      - name: Test metadata
+        run: npm run test -- -t "exposes|normalizes"
       - name: Typecheck
         run: npm run typecheck
       - name: Build
