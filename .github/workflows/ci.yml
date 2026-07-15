@@ -10,14 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          show-progress: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
-      - name: Typecheck
-        run: npm run typecheck
+      - run: npm install --no-audit --no-fund
       - name: Test
         run: npm run test
+      - name: Typecheck
+        run: npm run typecheck
       - name: Build
         run: npm run build
       - name: Check generated README
