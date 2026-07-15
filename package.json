@@ -1,0 +1,21 @@
+{
+  "name": "turbowarp-tmpose",
+  "version": "1.3.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "typecheck": "tsc --noEmit",
+    "build": "vite build",
+    "test": "vitest run",
+    "docs": "node scripts/generate-readme.mjs",
+    "docs:check": "npm run docs && git diff --exit-code -- README.md",
+    "check": "npm run typecheck && npm run test && npm run build && npm run docs:check"
+  },
+  "devDependencies": {
+    "@kubohiroya/vite-plugin-turbowarp-extension": "github:kubohiroya/vite-plugin-turbowarp-extension#a96b1ad92a5b9954d99c68b5e4a318c0722ec9e6",
+    "typescript": "^5.9.3",
+    "vite": "^7.0.0",
+    "vitest": "^4.0.14"
+  }
+}

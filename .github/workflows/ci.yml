@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          show-progress: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Test rollback
+        run: npm run test -- -t "stops MediaStream"
+      - name: Test preview toggle
+        run: npm run test -- -t "supports hide"
+      - name: Test preloaded libraries
+        run: npm run test -- -t "does not append"
+      - name: Test loop invalidation
+        run: npm run test -- -t "invalidates"
+      - name: Test DOM detection
+        run: npm run test -- -t "finds|throws|allows"
+      - name: Test metadata
+        run: npm run test -- -t "exposes|normalizes"
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Check generated README
+        run: npm run docs:check
