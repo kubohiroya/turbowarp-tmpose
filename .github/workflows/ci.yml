@@ -16,8 +16,14 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
-      - name: Test lifecycle
-        run: npm run test -- -t "stops|supports|does not|invalidates"
+      - name: Test rollback
+        run: npm run test -- -t "stops MediaStream"
+      - name: Test preview toggle
+        run: npm run test -- -t "supports hide"
+      - name: Test preloaded libraries
+        run: npm run test -- -t "does not append"
+      - name: Test loop invalidation
+        run: npm run test -- -t "invalidates"
       - name: Test DOM detection
         run: npm run test -- -t "finds|throws|allows"
       - name: Test metadata
