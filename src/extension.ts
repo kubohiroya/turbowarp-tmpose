@@ -28,7 +28,15 @@ function normalizePosition(value: unknown): string {
   return POSITION_ALIASES[String(value ?? 'bottom-right')] ?? 'bottom-right';
 }
 
+function scriptLoadedFor(src: string): boolean {
+  if (src === TFJS_URL) return typeof globalThis.tf !== 'undefined';
+  if (src === TMPOSE_URL) return typeof globalThis.tmPose !== 'undefined';
+  return false;
+}
+
 export function loadScript(src: string): Promise<void> {
+  if (scriptLoadedFor(src)) return Promise.resolve();
+
   const active = loadingPromises.get(src);
   if (active) return active;
 
@@ -37,24 +45,47 @@ export function loadScript(src: string): Promise<void> {
 
   const promise = new Promise<void>((resolve, reject) => {
     const script = existing ?? document.createElement('script');
+    const cleanup = () => {
+      script.removeEventListener('load', handleLoad);
+      script.removeEventListener('error', handleError);
+    };
     const handleLoad = () => {
+      cleanup();
       script.dataset.tmposeLoaded = 'true';
       resolve();
     };
     const handleError = () => {
+      cleanup();
       loadingPromises.delete(src);
       reject(new Error('TMPose: Failed to load script: ' + src));
     };
+
     script.addEventListener('load', handleLoad, {once: true});
     script.addEventListener('error', handleError, {once: true});
+
     if (!existing) {
       script.src = src;
       document.head.appendChild(script);
+    } else {
+      queueMicrotask(() => {
+        if (scriptLoadedFor(src)) handleLoad();
+      });
     }
   });
 
   loadingPromises.set(src, promise);
   return promise;
+}
+
+function rectanglesIntersect(left: DOMRect, right: DOMRect): boolean {
+  return left.right > right.left && left.left < right.right && left.bottom > right.top && left.top < right.bottom;
+}
+
+function canvasScore(width: number, height: number): number {
+  if (width <= 0 || height <= 0) return Number.NEGATIVE_INFINITY;
+  const area = width * height;
+  const aspectPenalty = Math.abs(width / height - 4 / 3);
+  return area / (1 + aspectPenalty * 4);
 }
 
 export class TMPoseExtension {
@@ -67,6 +98,7 @@ export class TMPoseExtension {
     this.cameraRunning = false;
     this.predicting = false;
     this.loopStarted = false;
+    this.loopGeneration = 0;
     this.currentPoseName = '';
     this.score = 0;
     this.predictions = {};
@@ -122,9 +154,26 @@ export class TMPoseExtension {
   }
 
   async ensureLibrariesLoaded() {
-    await loadScript(TFJS_URL);
-    await loadScript(TMPOSE_URL);
-    if (typeof tmPose === 'undefined') throw new Error('TMPose: Teachable Machine Pose could not be loaded.');
+    if (typeof globalThis.tf === 'undefined') await loadScript(TFJS_URL);
+    if (typeof globalThis.tmPose === 'undefined') await loadScript(TMPOSE_URL);
+    if (typeof globalThis.tmPose === 'undefined') {
+      throw new Error('TMPose: Teachable Machine Pose could not be loaded.');
+    }
+  }
+
+  cleanupCameraResources() {
+    const video = this.webcam?.webcam;
+    if (video?.srcObject) {
+      video.srcObject.getTracks().forEach((track) => track.stop());
+      video.srcObject = null;
+    }
+    this.previewCanvas?.parentNode?.removeChild(this.previewCanvas);
+    this.previewCanvas = null;
+    this.previewStageElement = null;
+    this.webcam = null;
+    this.cameraRunning = false;
+    this.loopStarted = false;
+    this.loopGeneration += 1;
   }
 
   async startCamera() {
@@ -136,17 +185,15 @@ export class TMPoseExtension {
       this.lastError = '';
       const startedAt = performance.now();
       await this.ensureLibrariesLoaded();
-      this.webcam = new tmPose.Webcam(320, 240, true);
+      this.webcam = new globalThis.tmPose.Webcam(320, 240, true);
       await this.webcam.setup();
       await this.webcam.play();
+      this.attachPreviewToStage();
       this.cameraRunning = true;
       this.cameraMs = Math.round(performance.now() - startedAt);
-      this.attachPreviewToStage();
-      if (!this.loopStarted) {
-        this.loopStarted = true;
-        void this.loop();
-      }
+      this.startLoopIfNeeded();
     } catch (error) {
+      this.cleanupCameraResources();
       this.setLastError(error);
       throw error;
     }
@@ -155,21 +202,7 @@ export class TMPoseExtension {
   stopCamera() {
     try {
       this.stopPredict();
-      if (!this.webcam) {
-        this.cameraRunning = false;
-        return;
-      }
-      const video = this.webcam.webcam;
-      if (video?.srcObject) {
-        video.srcObject.getTracks().forEach((track) => track.stop());
-        video.srcObject = null;
-      }
-      this.previewCanvas?.parentNode?.removeChild(this.previewCanvas);
-      this.previewCanvas = null;
-      this.previewStageElement = null;
-      this.webcam = null;
-      this.cameraRunning = false;
-      this.loopStarted = false;
+      this.cleanupCameraResources();
       this.currentPoseName = '';
       this.score = 0;
       this.predictions = {};
@@ -187,6 +220,7 @@ export class TMPoseExtension {
       if (!this.webcam?.canvas) throw new Error('TMPose: Start the camera before showing the preview.');
       this.attachPreviewToStage();
       this.previewCanvas.style.display = 'block';
+      this.validatePreviewAttachment(this.previewStageElement, this.previewCanvas);
     } catch (error) {
       this.setLastError(error);
       throw error;
@@ -209,7 +243,10 @@ export class TMPoseExtension {
 
   setPreviewPosition(args) {
     this.previewPosition = normalizePosition(args.POSITION);
-    if (this.previewCanvas) this.updatePreviewStyle();
+    if (this.previewCanvas) {
+      this.updatePreviewStyle();
+      this.validatePreviewAttachment(this.previewStageElement, this.previewCanvas);
+    }
   }
 
   async loadModel() {
@@ -219,7 +256,7 @@ export class TMPoseExtension {
       this.lastError = '';
       const startedAt = performance.now();
       await this.ensureLibrariesLoaded();
-      this.model = await tmPose.load(this.modelURL + 'model.json', this.modelURL + 'metadata.json');
+      this.model = await globalThis.tmPose.load(this.modelURL + 'model.json', this.modelURL + 'metadata.json');
       this.modelLoadMs = Math.round(performance.now() - startedAt);
     } catch (error) {
       this.setLastError(error);
@@ -235,10 +272,7 @@ export class TMPoseExtension {
       if (!this.cameraRunning) await this.startCamera();
       await this.loadModel();
       this.predicting = true;
-      if (!this.loopStarted) {
-        this.loopStarted = true;
-        void this.loop();
-      }
+      this.startLoopIfNeeded();
     } catch (error) {
       this.setLastError(error);
       throw error;
@@ -275,23 +309,51 @@ export class TMPoseExtension {
       .map((canvas) => {
         const rect = canvas.getBoundingClientRect();
         const style = window.getComputedStyle(canvas);
-        return {canvas, rect, style, area: rect.width * rect.height};
+        return {canvas, rect, style, score: canvasScore(rect.width, rect.height)};
       })
       .filter((item) => item.rect.width >= 200 && item.rect.height >= 150)
       .filter((item) => item.style.display !== 'none')
       .filter((item) => item.style.visibility !== 'hidden')
       .filter((item) => Number(item.style.opacity || 1) !== 0)
-      .sort((left, right) => right.area - left.area);
+      .sort((left, right) => right.score - left.score);
 
     if (visibleCandidates[0]) return visibleCandidates[0].canvas;
 
     const fallbackCandidates = allCanvases
-      .map((canvas) => ({canvas, area: canvas.width * canvas.height}))
+      .map((canvas) => ({canvas, score: canvasScore(canvas.width, canvas.height)}))
       .filter((item) => item.canvas.width >= 200 && item.canvas.height >= 150)
-      .sort((left, right) => right.area - left.area);
+      .sort((left, right) => right.score - left.score);
 
     if (fallbackCandidates[0]) return fallbackCandidates[0].canvas;
     throw new Error('TMPose: No likely stage canvas was found. The editor or packager DOM may be unsupported.');
+  }
+
+  validatePreviewAttachment(stage, canvas) {
+    if (!stage || !canvas || canvas.parentElement !== stage) {
+      throw new Error('TMPose: Preview canvas was not attached to the stage.');
+    }
+
+    const canvasStyle = window.getComputedStyle(canvas);
+    if (canvasStyle.display === 'none' && this.previewVisible) {
+      throw new Error('TMPose: Preview canvas is hidden by display:none.');
+    }
+    if (canvasStyle.visibility === 'hidden' && this.previewVisible) {
+      throw new Error('TMPose: Preview canvas is hidden by visibility:hidden.');
+    }
+
+    const stageRect = stage.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+    const documentHidden = typeof document.visibilityState === 'string' && document.visibilityState === 'hidden';
+    const layoutUnavailable = stageRect.width === 0 || stageRect.height === 0;
+
+    if (!documentHidden && !layoutUnavailable && this.previewVisible) {
+      if (canvasRect.width <= 0 || canvasRect.height <= 0) {
+        throw new Error('TMPose: Preview canvas was attached but has zero size.');
+      }
+      if (!rectanglesIntersect(stageRect, canvasRect)) {
+        throw new Error('TMPose: Preview canvas does not intersect the stage.');
+      }
+    }
   }
 
   attachPreviewToStage() {
@@ -312,6 +374,7 @@ export class TMPoseExtension {
     });
     if (canvas.parentNode !== stage) stage.appendChild(canvas);
     this.updatePreviewStyle();
+    this.validatePreviewAttachment(stage, canvas);
   }
 
   updatePreviewStyle() {
@@ -335,9 +398,16 @@ export class TMPoseExtension {
     }
   }
 
-  async loop() {
-    if (!this.cameraRunning || !this.webcam) {
-      this.loopStarted = false;
+  startLoopIfNeeded() {
+    if (this.loopStarted || !this.cameraRunning || !this.webcam) return;
+    this.loopStarted = true;
+    const generation = ++this.loopGeneration;
+    void this.loop(generation);
+  }
+
+  async loop(generation = this.loopGeneration) {
+    if (generation !== this.loopGeneration || !this.cameraRunning || !this.webcam) {
+      if (generation === this.loopGeneration) this.loopStarted = false;
       return;
     }
     try {
@@ -347,6 +417,7 @@ export class TMPoseExtension {
         const startedAt = first ? performance.now() : 0;
         const estimate = await this.model.estimatePose(this.webcam.canvas);
         const prediction = await this.model.predict(estimate.posenetOutput);
+        if (generation !== this.loopGeneration || !this.cameraRunning) return;
         if (first) this.firstPredictMs = Math.round(performance.now() - startedAt);
         let best = {className: '', probability: 0};
         this.predictions = {};
@@ -360,14 +431,19 @@ export class TMPoseExtension {
     } catch (error) {
       this.setLastError(error);
     }
-    requestAnimationFrame(() => void this.loop());
+    if (generation === this.loopGeneration && this.cameraRunning && this.webcam) {
+      requestAnimationFrame(() => void this.loop(generation));
+    } else if (generation === this.loopGeneration) {
+      this.loopStarted = false;
+    }
   }
 
   currentPoseReporter() { return this.currentPoseName; }
   scoreReporter() { return Math.round(this.score * 100) / 100; }
 
   poseScoreReporter(args) {
-    return Math.round((this.predictions[String(args.NAME || '')] || 0) * 100) / 100;
+    const value = this.predictions[String(args.NAME || '')] || 0;
+    return Math.round(value * 100) / 100;
   }
 
   isPose(args) {
