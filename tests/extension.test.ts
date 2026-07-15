@@ -129,8 +129,11 @@ describe('TMPoseExtension', () => {
       play: vi.fn(async () => undefined),
       update: vi.fn()
     };
+    function Webcam() {
+      return webcam;
+    }
     vi.stubGlobal('tf', {});
-    vi.stubGlobal('tmPose', {Webcam: vi.fn(() => webcam)});
+    vi.stubGlobal('tmPose', {Webcam});
 
     const extension = new TMPoseExtension();
     vi.spyOn(extension, 'attachPreviewToStage').mockImplementation(() => {
