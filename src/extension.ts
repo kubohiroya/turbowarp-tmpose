@@ -99,6 +99,10 @@ function canvasScore(width: number, height: number): number {
   return area / (1 + aspectPenalty * 4);
 }
 
+function isDocumentHidden(): boolean {
+  return typeof document !== 'undefined' && document.visibilityState === 'hidden';
+}
+
 export class TMPoseExtension {
   [key: string]: any;
 
@@ -131,6 +135,11 @@ export class TMPoseExtension {
     this.modelLoadMs = 0;
     this.firstPredictMs = 0;
     this.lastError = '';
+    this.accumulatedPosePausedForBackground = isDocumentHidden();
+    this.visibilityChangeListener = () => this.handleDocumentVisibilityChange();
+    if (this.featureFlags.temporalPoseScoring && typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.visibilityChangeListener);
+    }
   }
 
   getInfo() {
@@ -523,7 +532,25 @@ export class TMPoseExtension {
     this.emitAccumulatedPoseChanged(previousPoseName, reason);
   }
 
+  handleDocumentVisibilityChange() {
+    if (typeof document === 'undefined') return;
+    if (isDocumentHidden()) {
+      this.accumulatedPosePausedForBackground = true;
+      return;
+    }
+    if (this.accumulatedPosePausedForBackground) {
+      this.accumulatedPosePausedForBackground = false;
+      this.lastAccumulationTime = this.predicting ? performance.now() : null;
+    }
+  }
+
   updateAccumulatedPose(prediction, now = performance.now()) {
+    if (isDocumentHidden()) {
+      this.accumulatedPosePausedForBackground = true;
+      return;
+    }
+    if (this.accumulatedPosePausedForBackground) return;
+
     const elapsedSeconds = this.lastAccumulationTime === null
       ? 0
       : Math.max(0, (now - this.lastAccumulationTime) / 1000);
@@ -566,11 +593,11 @@ export class TMPoseExtension {
   }
 
   accumulatedPoseReporter() { return this.accumulatedPoseName; }
-  accumulatedScoreReporter() { return Math.round(this.accumulatedScore * 100) / 100; }
+  accumulatedScoreReporter() { return this.accumulatedScore; }
 
   accumulatedPoseScoreReporter(args) {
     const value = this.accumulatedPredictions[String(args.NAME || '')] || 0;
-    return Math.round(value * 100) / 100;
+    return value;
   }
 
   isPose(args) {

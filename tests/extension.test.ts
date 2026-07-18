@@ -43,6 +43,7 @@ beforeEach(() => {
     visibilityState: 'visible',
     createElement: vi.fn((tag: string) => createElement(tag.toUpperCase())),
     head: {appendChild: vi.fn((script: any) => scripts.push(script))},
+    addEventListener: vi.fn(),
     querySelector,
     querySelectorAll
   });
@@ -237,6 +238,18 @@ describe('TMPoseExtension', () => {
     expect(extension.accumulatedPoseReporter()).toBe('jump');
   });
 
+  it('reports the unrounded accumulated score used by threshold selection', () => {
+    const extension = new TMPoseExtension({temporalPoseScoring: true});
+    extension.setAccumulatedPoseParameters({ACCUMULATION: 1, DECAY: 1});
+    extension.setAccumulatedPoseThreshold({THRESHOLD: 0.5});
+    extension.startAccumulatedPoseSession(0);
+
+    extension.updateAccumulatedPose([{className: 'jump', probability: 0.499}], 1000);
+    expect(extension.accumulatedScoreReporter()).toBe(0.499);
+    expect(extension.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(0.499);
+    expect(extension.accumulatedPoseReporter()).toBe('');
+  });
+
   it('normalizes accumulation by elapsed time across prediction rates', () => {
     const lowFps = new TMPoseExtension({temporalPoseScoring: true});
     const highFps = new TMPoseExtension({temporalPoseScoring: true});
@@ -253,7 +266,39 @@ describe('TMPoseExtension', () => {
     }
 
     expect(lowFps.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(1);
-    expect(highFps.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(1);
+    expect(highFps.accumulatedPoseScoreReporter({NAME: 'jump'})).toBeCloseTo(1, 12);
+  });
+
+  it('pauses accumulation and decay while the document is hidden', () => {
+    const extension = new TMPoseExtension({temporalPoseScoring: true});
+    extension.setAccumulatedPoseParameters({ACCUMULATION: 1, DECAY: 0.5});
+    extension.startAccumulatedPoseSession(0);
+    extension.predicting = true;
+
+    extension.updateAccumulatedPose([{className: 'jump', probability: 1}], 1000);
+    expect(extension.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(1);
+
+    (document as any).visibilityState = 'hidden';
+    extension.handleDocumentVisibilityChange();
+    extension.updateAccumulatedPose([{className: 'jump', probability: 1}], 61_000);
+    expect(extension.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(1);
+
+    vi.mocked(performance.now).mockReturnValue(61_000);
+    (document as any).visibilityState = 'visible';
+    extension.handleDocumentVisibilityChange();
+    extension.updateAccumulatedPose([{className: 'jump', probability: 0}], 62_000);
+    expect(extension.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(0.5);
+  });
+
+  it('supports accumulated scoring when document is unavailable', () => {
+    vi.stubGlobal('document', undefined);
+    const extension = new TMPoseExtension({temporalPoseScoring: true});
+    extension.setAccumulatedPoseParameters({ACCUMULATION: 1, DECAY: 1});
+    extension.startAccumulatedPoseSession(0);
+
+    expect(() => extension.handleDocumentVisibilityChange()).not.toThrow();
+    extension.updateAccumulatedPose([{className: 'jump', probability: 1}], 1000);
+    expect(extension.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(1);
   });
 
   it('applies decay changes made during recognition to the next session', async () => {

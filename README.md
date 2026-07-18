@@ -18,6 +18,9 @@ When enabled, each recognition update uses
 `previous × activeDecayCoefficient^elapsedSeconds + currentProbability × accumulationCoefficient × elapsedSeconds`.
 The accumulation coefficient is a per-second rate, and the decay coefficient is the fraction retained after one second.
 Decay changes made during recognition apply when recognition is next started.
+When the browser document becomes hidden, accumulated pose addition and decay both pause.
+When the document becomes visible again, timing resumes from that moment, so time spent in the
+background is excluded from the next accumulated-score update.
 
 ### Accumulated pose change events
 
@@ -41,8 +44,9 @@ the threshold, and returns to an empty string if decay later lowers the score be
 Changing the threshold immediately reevaluates the scores already accumulated.
 
 `accumulated score` and `accumulated score of [NAME]` continue to return their raw accumulated values
-even while `accumulated pose` is empty. Before the first usable prediction, immediately after reset,
-or after recognition or the camera is stopped, `accumulated pose` is empty and `accumulated score` is `0`.
+without rounding, using the same numeric precision as threshold selection, even while `accumulated pose`
+is empty. Before the first usable prediction, immediately after reset, or after recognition or the
+camera is stopped, `accumulated pose` is empty and `accumulated score` is `0`.
 
 ## Blocks
 
@@ -259,7 +263,7 @@ Returns the pose label whose accumulated score is highest and meets the threshol
 
 ### `accumulated score`
 
-Returns the highest accumulated pose score.
+Returns the highest accumulated pose score without rounding.
 
 | Property | Value |
 |---|---|
@@ -269,7 +273,7 @@ Returns the highest accumulated pose score.
 
 ### `accumulated score of [NAME]`
 
-Returns the accumulated score for a named pose.
+Returns the accumulated score for a named pose without rounding.
 
 | Property | Value |
 |---|---|
