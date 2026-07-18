@@ -77,9 +77,10 @@ describe('TMPoseExtension', () => {
     const info = new TMPoseExtension({temporalPoseScoring: true}).getInfo() as {
       blocks: Array<{opcode: string}>;
     };
-    expect(info.blocks).toHaveLength(29);
+    expect(info.blocks).toHaveLength(30);
     expect(info.blocks.map((block) => block.opcode)).toEqual(expect.arrayContaining([
       'setAccumulatedPoseParameters',
+      'setAccumulatedPoseThreshold',
       'resetAccumulatedPose',
       'accumulatedPoseReporter',
       'accumulatedScoreReporter',
@@ -107,6 +108,30 @@ describe('TMPoseExtension', () => {
     expect(extension.accumulatedPoseScoreReporter({NAME: 'stand'})).toBe(2);
     expect(extension.accumulatedPoseReporter()).toBe('stand');
     expect(extension.accumulatedScoreReporter()).toBe(2);
+  });
+
+  it('reports an accumulated pose only while its score meets the threshold', () => {
+    const extension = new TMPoseExtension({temporalPoseScoring: true});
+    extension.setAccumulatedPoseParameters({ACCUMULATION: 1, DECAY: 0.5});
+    extension.setAccumulatedPoseThreshold({THRESHOLD: 0.75});
+    extension.startAccumulatedPoseSession(0);
+
+    extension.updateAccumulatedPose([{className: 'jump', probability: 1}], 1000);
+    expect(extension.accumulatedPoseReporter()).toBe('jump');
+    expect(extension.accumulatedScoreReporter()).toBe(1);
+
+    extension.updateAccumulatedPose([{className: 'jump', probability: 0}], 2000);
+    expect(extension.accumulatedPoseReporter()).toBe('');
+    expect(extension.accumulatedScoreReporter()).toBe(0.5);
+
+    extension.setAccumulatedPoseThreshold({THRESHOLD: 0.5});
+    expect(extension.accumulatedPoseReporter()).toBe('jump');
+    extension.setAccumulatedPoseThreshold({THRESHOLD: 0.51});
+    expect(extension.accumulatedPoseReporter()).toBe('');
+
+    extension.setAccumulatedPoseThreshold({THRESHOLD: -1});
+    expect(extension.accumulatedPoseThreshold).toBe(0);
+    expect(extension.accumulatedPoseReporter()).toBe('jump');
   });
 
   it('normalizes accumulation by elapsed time across prediction rates', () => {

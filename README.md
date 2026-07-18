@@ -19,17 +19,18 @@ When enabled, each recognition update uses
 The accumulation coefficient is a per-second rate, and the decay coefficient is the fraction retained after one second.
 Decay changes made during recognition apply when recognition is next started.
 
-### Empty `accumulated pose` result
+### `accumulated pose` threshold and empty result
 
-`accumulated pose` returns an empty string (`""`) when no pose has a positive accumulated score.
-In that state, `accumulated score` returns `0`.
-This can occur before the first usable prediction, immediately after accumulated scores are reset,
-after recognition or the camera is stopped, or when no positive contribution has been accumulated
-because the accumulation coefficient or all pose probabilities are zero.
+The accumulated pose threshold is `0` by default and can be changed with
+`set accumulated pose threshold [THRESHOLD]`.
+`accumulated pose` returns the pose with the highest positive accumulated score only when that score
+is greater than or equal to the threshold. It returns an empty string (`""`) while the score is below
+the threshold, and returns to an empty string if decay later lowers the score below the threshold.
+Changing the threshold immediately reevaluates the scores already accumulated.
 
-There is no separate minimum-confidence threshold for `accumulated pose`.
-Any pose with the highest positive accumulated score is returned; “insufficient recognition”
-means that every accumulated pose score is exactly zero.
+`accumulated score` and `accumulated score of [NAME]` continue to return their raw accumulated values
+even while `accumulated pose` is empty. Before the first usable prediction, immediately after reset,
+or after recognition or the camera is stopped, `accumulated pose` is empty and `accumulated score` is `0`.
 
 ## Blocks
 
@@ -213,6 +214,17 @@ Sets the accumulation rate per second and the decay retained per second; decay c
 | `ACCUMULATION` | NUMBER, default: `1` |
 | `DECAY` | NUMBER, default: `0.9` |
 
+### `set accumulated pose threshold [THRESHOLD]`
+
+Sets the minimum accumulated score required to report a pose; values below the threshold report an empty string.
+
+| Property | Value |
+|---|---|
+| Type | COMMAND |
+| Opcode | `setAccumulatedPoseThreshold` |
+| Feature flag | `temporalPoseScoring` |
+| `THRESHOLD` | NUMBER, default: `0` |
+
 ### `reset accumulated pose scores`
 
 Clears all accumulated pose scores.
@@ -225,7 +237,7 @@ Clears all accumulated pose scores.
 
 ### `accumulated pose`
 
-Returns the pose label with the highest accumulated score, or an empty string when no pose has a positive accumulated score.
+Returns the pose label whose accumulated score is highest and meets the threshold, or an empty string otherwise.
 
 | Property | Value |
 |---|---|

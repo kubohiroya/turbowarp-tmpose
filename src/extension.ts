@@ -107,6 +107,7 @@ export class TMPoseExtension {
     this.accumulationCoefficient = 1;
     this.decayCoefficient = 0.9;
     this.activeDecayCoefficient = 0.9;
+    this.accumulatedPoseThreshold = 0;
     this.accumulatedPoseName = '';
     this.accumulatedScore = 0;
     this.accumulatedPredictions = {};
@@ -472,6 +473,12 @@ export class TMPoseExtension {
     this.decayCoefficient = Number.isFinite(decay) ? Math.max(0, Math.min(1, decay)) : 0.9;
   }
 
+  setAccumulatedPoseThreshold(args) {
+    const threshold = args.THRESHOLD === '' ? 0 : Number(args.THRESHOLD);
+    this.accumulatedPoseThreshold = Number.isFinite(threshold) ? Math.max(0, threshold) : 0;
+    this.updateAccumulatedPoseSelection();
+  }
+
   startAccumulatedPoseSession(now = performance.now()) {
     this.activeDecayCoefficient = this.decayCoefficient;
     this.lastAccumulationTime = now;
@@ -506,13 +513,21 @@ export class TMPoseExtension {
     }
 
     this.lastAccumulationTime = now;
+    this.updateAccumulatedPoseSelection();
+  }
+
+  updateAccumulatedPoseSelection() {
     this.accumulatedPoseName = '';
     this.accumulatedScore = 0;
+    let bestPoseName = '';
     for (const [name, value] of Object.entries(this.accumulatedPredictions)) {
       if ((value as number) > this.accumulatedScore) {
-        this.accumulatedPoseName = name;
+        bestPoseName = name;
         this.accumulatedScore = value as number;
       }
+    }
+    if (bestPoseName && this.accumulatedScore >= this.accumulatedPoseThreshold) {
+      this.accumulatedPoseName = bestPoseName;
     }
   }
 
