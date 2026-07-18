@@ -3,6 +3,16 @@ import {FEATURE_FLAGS, type FeatureFlags} from './config/feature-flags.js';
 
 export const EXTENSION_ID = 'tmpose';
 export const VERSION = '1.3.0-typescript';
+export const ACCUMULATED_POSE_CHANGED_EVENT = 'TMPOSE_ACCUMULATED_POSE_CHANGED';
+
+export interface AccumulatedPoseChangedEventV1 {
+  version: 1;
+  poseName: string;
+  previousPoseName: string;
+  score: number;
+  reason: 'prediction' | 'reset' | 'stop';
+  timestamp: number;
+}
 
 const TFJS_URL = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js';
 const TMPOSE_URL = 'https://cdn.jsdelivr.net/npm/@teachablemachine/pose@0.8.3/dist/teachablemachine-pose.min.js';
@@ -300,7 +310,7 @@ export class TMPoseExtension {
     this.currentPoseName = '';
     this.score = 0;
     this.predictions = {};
-    this.resetAccumulatedPose();
+    this.resetAccumulatedPose('stop');
   }
 
   isPredicting() { return this.predicting; }
@@ -484,11 +494,33 @@ export class TMPoseExtension {
     this.lastAccumulationTime = now;
   }
 
-  resetAccumulatedPose() {
+  supportsAccumulatedPoseEvents() {
+    return this.featureFlags.temporalPoseScoring && this.featureFlags.accumulatedPoseEvents;
+  }
+
+  emitAccumulatedPoseChanged(
+    previousPoseName: string,
+    reason: AccumulatedPoseChangedEventV1['reason']
+  ) {
+    if (!this.supportsAccumulatedPoseEvents() || previousPoseName === this.accumulatedPoseName) return;
+    const payload: AccumulatedPoseChangedEventV1 = {
+      version: 1,
+      poseName: this.accumulatedPoseName,
+      previousPoseName,
+      score: this.accumulatedScore,
+      reason,
+      timestamp: performance.now()
+    };
+    Scratch.vm?.runtime?.emit(ACCUMULATED_POSE_CHANGED_EVENT, payload);
+  }
+
+  resetAccumulatedPose(reason: AccumulatedPoseChangedEventV1['reason'] = 'reset') {
+    const previousPoseName = this.accumulatedPoseName;
     this.accumulatedPoseName = '';
     this.accumulatedScore = 0;
     this.accumulatedPredictions = {};
     this.lastAccumulationTime = this.predicting ? performance.now() : null;
+    this.emitAccumulatedPoseChanged(previousPoseName, reason);
   }
 
   updateAccumulatedPose(prediction, now = performance.now()) {
@@ -517,6 +549,7 @@ export class TMPoseExtension {
   }
 
   updateAccumulatedPoseSelection() {
+    const previousPoseName = this.accumulatedPoseName;
     this.accumulatedPoseName = '';
     this.accumulatedScore = 0;
     let bestPoseName = '';
@@ -529,6 +562,7 @@ export class TMPoseExtension {
     if (bestPoseName && this.accumulatedScore >= this.accumulatedPoseThreshold) {
       this.accumulatedPoseName = bestPoseName;
     }
+    this.emitAccumulatedPoseChanged(previousPoseName, 'prediction');
   }
 
   accumulatedPoseReporter() { return this.accumulatedPoseName; }

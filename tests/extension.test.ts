@@ -88,6 +88,109 @@ describe('TMPoseExtension', () => {
     ]));
   });
 
+  it('reports accumulated pose event capability only when both feature flags are enabled', () => {
+    expect(new TMPoseExtension().supportsAccumulatedPoseEvents()).toBe(false);
+    expect(new TMPoseExtension({
+      temporalPoseScoring: true
+    }).supportsAccumulatedPoseEvents()).toBe(false);
+    expect(new TMPoseExtension({
+      temporalPoseScoring: true,
+      accumulatedPoseEvents: true
+    }).supportsAccumulatedPoseEvents()).toBe(true);
+  });
+
+  it('emits versioned events only when the accumulated pose name changes', () => {
+    const emit = vi.fn();
+    (Scratch as any).vm = {runtime: {emit}};
+    const extension = new TMPoseExtension({
+      temporalPoseScoring: true,
+      accumulatedPoseEvents: true
+    });
+    extension.setAccumulatedPoseParameters({ACCUMULATION: 1, DECAY: 0});
+    extension.startAccumulatedPoseSession(0);
+
+    extension.updateAccumulatedPose([
+      {className: 'jump', probability: 1},
+      {className: 'stand', probability: 0}
+    ], 1000);
+    extension.updateAccumulatedPose([
+      {className: 'jump', probability: 1},
+      {className: 'stand', probability: 0}
+    ], 2000);
+    extension.updateAccumulatedPose([
+      {className: 'jump', probability: 0},
+      {className: 'stand', probability: 1}
+    ], 3000);
+
+    expect(emit).toHaveBeenCalledTimes(2);
+    expect(emit).toHaveBeenNthCalledWith(1, 'TMPOSE_ACCUMULATED_POSE_CHANGED', {
+      version: 1,
+      poseName: 'jump',
+      previousPoseName: '',
+      score: 1,
+      reason: 'prediction',
+      timestamp: 100
+    });
+    expect(emit).toHaveBeenNthCalledWith(2, 'TMPOSE_ACCUMULATED_POSE_CHANGED', {
+      version: 1,
+      poseName: 'stand',
+      previousPoseName: 'jump',
+      score: 1,
+      reason: 'prediction',
+      timestamp: 100
+    });
+  });
+
+  it('emits one empty transition for reset or stop and does not duplicate it', () => {
+    const emit = vi.fn();
+    (Scratch as any).vm = {runtime: {emit}};
+    const extension = new TMPoseExtension({
+      temporalPoseScoring: true,
+      accumulatedPoseEvents: true
+    });
+    extension.setAccumulatedPoseParameters({ACCUMULATION: 1, DECAY: 1});
+    extension.startAccumulatedPoseSession(0);
+    extension.updateAccumulatedPose([{className: 'jump', probability: 1}], 1000);
+
+    extension.resetAccumulatedPose();
+    extension.stopPredict();
+    expect(emit).toHaveBeenLastCalledWith('TMPOSE_ACCUMULATED_POSE_CHANGED', {
+      version: 1,
+      poseName: '',
+      previousPoseName: 'jump',
+      score: 0,
+      reason: 'reset',
+      timestamp: 100
+    });
+    expect(emit).toHaveBeenCalledTimes(2);
+
+    extension.startAccumulatedPoseSession(1000);
+    extension.updateAccumulatedPose([{className: 'stand', probability: 1}], 2000);
+    extension.stopCamera();
+    expect(emit).toHaveBeenLastCalledWith('TMPOSE_ACCUMULATED_POSE_CHANGED', {
+      version: 1,
+      poseName: '',
+      previousPoseName: 'stand',
+      score: 0,
+      reason: 'stop',
+      timestamp: 100
+    });
+    expect(emit).toHaveBeenCalledTimes(4);
+  });
+
+  it('publishes its event capability on the TurboWarp runtime when registered', async () => {
+    const runtime = {emit: vi.fn()};
+    const register = vi.fn();
+    (Scratch as any).vm = {runtime};
+    (Scratch as any).extensions.register = register;
+
+    await import('../src/index.js');
+
+    const registeredExtension = register.mock.calls[0]?.[0];
+    expect(runtime).toHaveProperty('ext_tmpose', registeredExtension);
+    expect(typeof registeredExtension.supportsAccumulatedPoseEvents).toBe('function');
+  });
+
   it('accumulates pose scores and decays previous values by elapsed time', () => {
     const extension = new TMPoseExtension({temporalPoseScoring: true});
     extension.setAccumulatedPoseParameters({ACCUMULATION: 2, DECAY: 0.5});

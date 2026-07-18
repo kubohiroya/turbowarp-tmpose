@@ -19,6 +19,18 @@ When enabled, each recognition update uses
 The accumulation coefficient is a per-second rate, and the decay coefficient is the fraction retained after one second.
 Decay changes made during recognition apply when recognition is next started.
 
+### Accumulated pose change events
+
+The optional `accumulatedPoseEvents` feature flag publishes accumulated pose name transitions for
+other unsandboxed extensions. It is off by default and requires `temporalPoseScoring`.
+Consumers can check `runtime.ext_tmpose.supportsAccumulatedPoseEvents()` and subscribe to
+`TMPOSE_ACCUMULATED_POSE_CHANGED` on the TurboWarp runtime.
+
+Each event carries a version 1 payload with `poseName`, `previousPoseName`, `score`,
+`reason` (`prediction`, `reset`, or `stop`), and a monotonic `timestamp`.
+Score-only updates do not emit an event. Resetting or stopping recognition emits one transition
+to an empty pose when a pose was previously selected.
+
 ### `accumulated pose` threshold and empty result
 
 The accumulated pose threshold is `0` by default and can be changed with
