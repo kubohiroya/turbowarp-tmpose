@@ -18,6 +18,9 @@ When enabled, each recognition update uses
 `previous × activeDecayCoefficient^elapsedSeconds + currentProbability × accumulationCoefficient × elapsedSeconds`.
 The accumulation coefficient is a per-second rate, and the decay coefficient is the fraction retained after one second.
 Decay changes made during recognition apply when recognition is next started.
+When the browser document becomes hidden, accumulated pose addition and decay both pause.
+When the document becomes visible again, timing resumes from that moment, so time spent in the
+background is excluded from the next accumulated-score update.
 
 ### `accumulated pose` threshold and empty result
 
