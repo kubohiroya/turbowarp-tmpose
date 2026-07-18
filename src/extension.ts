@@ -1,4 +1,5 @@
 import definitions from './block-definitions.json' with {type: 'json'};
+import {FEATURE_FLAGS, type FeatureFlags} from './config/feature-flags.js';
 
 export const EXTENSION_ID = 'tmpose';
 export const VERSION = '1.3.0-typescript';
@@ -91,7 +92,8 @@ function canvasScore(width: number, height: number): number {
 export class TMPoseExtension {
   [key: string]: any;
 
-  constructor() {
+  constructor(featureFlags: Partial<FeatureFlags> = {}) {
+    this.featureFlags = {...FEATURE_FLAGS, ...featureFlags};
     this.modelURL = '';
     this.model = null;
     this.webcam = null;
@@ -102,6 +104,13 @@ export class TMPoseExtension {
     this.currentPoseName = '';
     this.score = 0;
     this.predictions = {};
+    this.accumulationCoefficient = 1;
+    this.decayCoefficient = 0.9;
+    this.activeDecayCoefficient = 0.9;
+    this.accumulatedPoseName = '';
+    this.accumulatedScore = 0;
+    this.accumulatedPredictions = {};
+    this.lastAccumulationTime = null;
     this.previewOpacity = 0.6;
     this.previewPosition = 'bottom-right';
     this.previewVisible = true;
@@ -117,22 +126,24 @@ export class TMPoseExtension {
     return {
       id: EXTENSION_ID,
       name: Scratch.translate(definitions.extensionName),
-      blocks: definitions.blocks.map((block: any) => ({
-        opcode: block.opcode,
-        blockType: Scratch.BlockType[block.blockType],
-        text: Scratch.translate(block.text),
-        ...(block.disableMonitor ? {disableMonitor: true} : {}),
-        ...(block.arguments ? {
-          arguments: Object.fromEntries(Object.entries(block.arguments).map(([name, argument]: [string, any]) => [
-            name,
-            {
-              type: Scratch.ArgumentType[argument.type],
-              defaultValue: argument.defaultValue,
-              ...(argument.menu ? {menu: argument.menu} : {})
-            }
-          ]))
-        } : {})
-      })),
+      blocks: definitions.blocks
+        .filter((block: any) => !block.featureFlag || this.featureFlags[block.featureFlag])
+        .map((block: any) => ({
+          opcode: block.opcode,
+          blockType: Scratch.BlockType[block.blockType],
+          text: Scratch.translate(block.text),
+          ...(block.disableMonitor ? {disableMonitor: true} : {}),
+          ...(block.arguments ? {
+            arguments: Object.fromEntries(Object.entries(block.arguments).map(([name, argument]: [string, any]) => [
+              name,
+              {
+                type: Scratch.ArgumentType[argument.type],
+                defaultValue: argument.defaultValue,
+                ...(argument.menu ? {menu: argument.menu} : {})
+              }
+            ]))
+          } : {})
+        })),
       menus: {
         positionMenu: {
           acceptReporters: true,
@@ -269,8 +280,12 @@ export class TMPoseExtension {
   async startPredict() {
     try {
       this.lastError = '';
+      const startingNewSession = !this.predicting;
       if (!this.cameraRunning) await this.startCamera();
       await this.loadModel();
+      if (startingNewSession && this.featureFlags.temporalPoseScoring) {
+        this.startAccumulatedPoseSession();
+      }
       this.predicting = true;
       this.startLoopIfNeeded();
     } catch (error) {
@@ -284,6 +299,7 @@ export class TMPoseExtension {
     this.currentPoseName = '';
     this.score = 0;
     this.predictions = {};
+    this.resetAccumulatedPose();
   }
 
   isPredicting() { return this.predicting; }
@@ -427,6 +443,9 @@ export class TMPoseExtension {
         }
         this.currentPoseName = best.className;
         this.score = best.probability;
+        if (this.featureFlags.temporalPoseScoring) {
+          this.updateAccumulatedPose(prediction);
+        }
       }
     } catch (error) {
       this.setLastError(error);
@@ -443,6 +462,65 @@ export class TMPoseExtension {
 
   poseScoreReporter(args) {
     const value = this.predictions[String(args.NAME || '')] || 0;
+    return Math.round(value * 100) / 100;
+  }
+
+  setAccumulatedPoseParameters(args) {
+    const accumulation = args.ACCUMULATION === '' ? 1 : Number(args.ACCUMULATION);
+    const decay = args.DECAY === '' ? 0.9 : Number(args.DECAY);
+    this.accumulationCoefficient = Number.isFinite(accumulation) ? Math.max(0, accumulation) : 1;
+    this.decayCoefficient = Number.isFinite(decay) ? Math.max(0, Math.min(1, decay)) : 0.9;
+  }
+
+  startAccumulatedPoseSession(now = performance.now()) {
+    this.activeDecayCoefficient = this.decayCoefficient;
+    this.lastAccumulationTime = now;
+  }
+
+  resetAccumulatedPose() {
+    this.accumulatedPoseName = '';
+    this.accumulatedScore = 0;
+    this.accumulatedPredictions = {};
+    this.lastAccumulationTime = this.predicting ? performance.now() : null;
+  }
+
+  updateAccumulatedPose(prediction, now = performance.now()) {
+    const elapsedSeconds = this.lastAccumulationTime === null
+      ? 0
+      : Math.max(0, (now - this.lastAccumulationTime) / 1000);
+    const decayMultiplier = elapsedSeconds === 0
+      ? 1
+      : Math.pow(this.activeDecayCoefficient, elapsedSeconds);
+
+    for (const name of Object.keys(this.accumulatedPredictions)) {
+      this.accumulatedPredictions[name] *= decayMultiplier;
+    }
+
+    for (const result of prediction) {
+      const name = String(result.className || '');
+      const probability = Number(result.probability);
+      if (!name || !Number.isFinite(probability)) continue;
+      const contribution =
+        Math.max(0, Math.min(1, probability)) * this.accumulationCoefficient * elapsedSeconds;
+      this.accumulatedPredictions[name] = (this.accumulatedPredictions[name] || 0) + contribution;
+    }
+
+    this.lastAccumulationTime = now;
+    this.accumulatedPoseName = '';
+    this.accumulatedScore = 0;
+    for (const [name, value] of Object.entries(this.accumulatedPredictions)) {
+      if ((value as number) > this.accumulatedScore) {
+        this.accumulatedPoseName = name;
+        this.accumulatedScore = value as number;
+      }
+    }
+  }
+
+  accumulatedPoseReporter() { return this.accumulatedPoseName; }
+  accumulatedScoreReporter() { return Math.round(this.accumulatedScore * 100) / 100; }
+
+  accumulatedPoseScoreReporter(args) {
+    const value = this.accumulatedPredictions[String(args.NAME || '')] || 0;
     return Math.round(value * 100) / 100;
   }
 

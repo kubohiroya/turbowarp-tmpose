@@ -9,8 +9,27 @@ A TurboWarp extension for camera-based pose recognition using Teachable Machine 
 - show the camera preview inside the TurboWarp stage area;
 - start and stop continuous recognition;
 - report the current pose and confidence scores;
+- optionally report time-decayed accumulated pose scores;
 - expose startup and model-loading timing measurements;
 - report explicit runtime errors instead of silently failing.
+
+Accumulated pose scoring is staged behind the `temporalPoseScoring` feature flag, which is off by default.
+When enabled, each recognition update uses
+`previous × activeDecayCoefficient^elapsedSeconds + currentProbability × accumulationCoefficient × elapsedSeconds`.
+The accumulation coefficient is a per-second rate, and the decay coefficient is the fraction retained after one second.
+Decay changes made during recognition apply when recognition is next started.
+
+### Empty `accumulated pose` result
+
+`accumulated pose` returns an empty string (`""`) when no pose has a positive accumulated score.
+In that state, `accumulated score` returns `0`.
+This can occur before the first usable prediction, immediately after accumulated scores are reset,
+after recognition or the camera is stopped, or when no positive contribution has been accumulated
+because the accumulation coefficient or all pose probabilities are zero.
+
+There is no separate minimum-confidence threshold for `accumulated pose`.
+Any pose with the highest positive accumulated score is returned; “insufficient recognition”
+means that every accumulated pose score is exactly zero.
 
 ## Blocks
 
@@ -180,6 +199,59 @@ Returns the confidence for a named pose.
 |---|---|
 | Type | REPORTER |
 | Opcode | `poseScoreReporter` |
+| `NAME` | STRING, default: `jump` |
+
+### `set accumulated pose accumulation [ACCUMULATION] decay [DECAY]`
+
+Sets the accumulation rate per second and the decay retained per second; decay changes apply to the next recognition session.
+
+| Property | Value |
+|---|---|
+| Type | COMMAND |
+| Opcode | `setAccumulatedPoseParameters` |
+| Feature flag | `temporalPoseScoring` |
+| `ACCUMULATION` | NUMBER, default: `1` |
+| `DECAY` | NUMBER, default: `0.9` |
+
+### `reset accumulated pose scores`
+
+Clears all accumulated pose scores.
+
+| Property | Value |
+|---|---|
+| Type | COMMAND |
+| Opcode | `resetAccumulatedPose` |
+| Feature flag | `temporalPoseScoring` |
+
+### `accumulated pose`
+
+Returns the pose label with the highest accumulated score, or an empty string when no pose has a positive accumulated score.
+
+| Property | Value |
+|---|---|
+| Type | REPORTER |
+| Opcode | `accumulatedPoseReporter` |
+| Feature flag | `temporalPoseScoring` |
+
+### `accumulated score`
+
+Returns the highest accumulated pose score.
+
+| Property | Value |
+|---|---|
+| Type | REPORTER |
+| Opcode | `accumulatedScoreReporter` |
+| Feature flag | `temporalPoseScoring` |
+
+### `accumulated score of [NAME]`
+
+Returns the accumulated score for a named pose.
+
+| Property | Value |
+|---|---|
+| Type | REPORTER |
+| Opcode | `accumulatedPoseScoreReporter` |
+| Feature flag | `temporalPoseScoring` |
 | `NAME` | STRING, default: `jump` |
 
 ### `pose is [NAME]?`
