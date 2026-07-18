@@ -11,6 +11,7 @@ for (const block of definitions.blocks) {
   lines.push('| Property | Value |', '|---|---|');
   lines.push(`| Type | ${block.blockType} |`);
   lines.push(`| Opcode | \`${block.opcode}\` |`);
+  if (block.featureFlag) lines.push(`| Feature flag | \`${block.featureFlag}\` |`);
   for (const [name, argument] of Object.entries(block.arguments ?? {})) {
     const details = [argument.type];
     if ('defaultValue' in argument) details.push(`default: \`${String(argument.defaultValue).replaceAll('\n', '\\n')}\``);

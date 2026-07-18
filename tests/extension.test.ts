@@ -73,6 +73,121 @@ describe('TMPoseExtension', () => {
     expect(info.blocks).toHaveLength(24);
   });
 
+  it('exposes accumulated pose blocks only when the feature flag is enabled', () => {
+    const info = new TMPoseExtension({temporalPoseScoring: true}).getInfo() as {
+      blocks: Array<{opcode: string}>;
+    };
+    expect(info.blocks).toHaveLength(30);
+    expect(info.blocks.map((block) => block.opcode)).toEqual(expect.arrayContaining([
+      'setAccumulatedPoseParameters',
+      'setAccumulatedPoseThreshold',
+      'resetAccumulatedPose',
+      'accumulatedPoseReporter',
+      'accumulatedScoreReporter',
+      'accumulatedPoseScoreReporter'
+    ]));
+  });
+
+  it('accumulates pose scores and decays previous values by elapsed time', () => {
+    const extension = new TMPoseExtension({temporalPoseScoring: true});
+    extension.setAccumulatedPoseParameters({ACCUMULATION: 2, DECAY: 0.5});
+    extension.startAccumulatedPoseSession(0);
+
+    extension.updateAccumulatedPose([
+      {className: 'jump', probability: 0.8},
+      {className: 'stand', probability: 0.2}
+    ], 1000);
+    expect(extension.accumulatedPoseReporter()).toBe('jump');
+    expect(extension.accumulatedScoreReporter()).toBe(1.6);
+
+    extension.updateAccumulatedPose([
+      {className: 'jump', probability: 0.1},
+      {className: 'stand', probability: 0.9}
+    ], 2000);
+    expect(extension.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(1);
+    expect(extension.accumulatedPoseScoreReporter({NAME: 'stand'})).toBe(2);
+    expect(extension.accumulatedPoseReporter()).toBe('stand');
+    expect(extension.accumulatedScoreReporter()).toBe(2);
+  });
+
+  it('reports an accumulated pose only while its score meets the threshold', () => {
+    const extension = new TMPoseExtension({temporalPoseScoring: true});
+    extension.setAccumulatedPoseParameters({ACCUMULATION: 1, DECAY: 0.5});
+    extension.setAccumulatedPoseThreshold({THRESHOLD: 0.75});
+    extension.startAccumulatedPoseSession(0);
+
+    extension.updateAccumulatedPose([{className: 'jump', probability: 1}], 1000);
+    expect(extension.accumulatedPoseReporter()).toBe('jump');
+    expect(extension.accumulatedScoreReporter()).toBe(1);
+
+    extension.updateAccumulatedPose([{className: 'jump', probability: 0}], 2000);
+    expect(extension.accumulatedPoseReporter()).toBe('');
+    expect(extension.accumulatedScoreReporter()).toBe(0.5);
+
+    extension.setAccumulatedPoseThreshold({THRESHOLD: 0.5});
+    expect(extension.accumulatedPoseReporter()).toBe('jump');
+    extension.setAccumulatedPoseThreshold({THRESHOLD: 0.51});
+    expect(extension.accumulatedPoseReporter()).toBe('');
+
+    extension.setAccumulatedPoseThreshold({THRESHOLD: -1});
+    expect(extension.accumulatedPoseThreshold).toBe(0);
+    expect(extension.accumulatedPoseReporter()).toBe('jump');
+  });
+
+  it('normalizes accumulation by elapsed time across prediction rates', () => {
+    const lowFps = new TMPoseExtension({temporalPoseScoring: true});
+    const highFps = new TMPoseExtension({temporalPoseScoring: true});
+    for (const extension of [lowFps, highFps]) {
+      extension.setAccumulatedPoseParameters({ACCUMULATION: 2, DECAY: 1});
+      extension.startAccumulatedPoseSession(0);
+    }
+
+    for (let now = 500; now <= 1000; now += 500) {
+      lowFps.updateAccumulatedPose([{className: 'jump', probability: 0.5}], now);
+    }
+    for (let now = 100; now <= 1000; now += 100) {
+      highFps.updateAccumulatedPose([{className: 'jump', probability: 0.5}], now);
+    }
+
+    expect(lowFps.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(1);
+    expect(highFps.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(1);
+  });
+
+  it('applies decay changes made during recognition to the next session', async () => {
+    const extension = new TMPoseExtension({temporalPoseScoring: true});
+    extension.cameraRunning = true;
+    extension.model = {};
+    extension.modelURL = 'https://example.com/model/';
+    extension.setAccumulatedPoseParameters({ACCUMULATION: 1, DECAY: 0.5});
+
+    await extension.startPredict();
+    expect(extension.activeDecayCoefficient).toBe(0.5);
+    extension.setAccumulatedPoseParameters({ACCUMULATION: 1, DECAY: 0.1});
+    expect(extension.decayCoefficient).toBe(0.1);
+    expect(extension.activeDecayCoefficient).toBe(0.5);
+
+    extension.stopPredict();
+    await extension.startPredict();
+    expect(extension.activeDecayCoefficient).toBe(0.1);
+  });
+
+  it('normalizes accumulated pose coefficients and resets temporal state', () => {
+    const extension = new TMPoseExtension({temporalPoseScoring: true});
+    extension.setAccumulatedPoseParameters({ACCUMULATION: -2, DECAY: 4});
+    expect(extension.accumulationCoefficient).toBe(0);
+    expect(extension.decayCoefficient).toBe(1);
+
+    extension.updateAccumulatedPose([{className: 'jump', probability: 1}], 1000);
+    extension.setAccumulatedPoseParameters({ACCUMULATION: 1, DECAY: 0.9});
+    extension.startAccumulatedPoseSession(1000);
+    extension.updateAccumulatedPose([{className: 'jump', probability: 1}], 2000);
+    extension.stopPredict();
+    expect(extension.accumulatedPoseReporter()).toBe('');
+    expect(extension.accumulatedScoreReporter()).toBe(0);
+    expect(extension.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(0);
+    expect(extension.lastAccumulationTime).toBeNull();
+  });
+
   it('normalizes a model URL with a trailing slash', () => {
     const extension = new TMPoseExtension();
     extension.setModelURL({URL: 'https://example.com/model'});
