@@ -554,11 +554,11 @@ export class TMPoseExtension {
   }
 
   accumulatedPoseReporter() { return this.accumulatedPoseName; }
-  accumulatedScoreReporter() { return Math.round(this.accumulatedScore * 100) / 100; }
+  accumulatedScoreReporter() { return this.accumulatedScore; }
 
   accumulatedPoseScoreReporter(args) {
     const value = this.accumulatedPredictions[String(args.NAME || '')] || 0;
-    return Math.round(value * 100) / 100;
+    return value;
   }
 
   isPose(args) {

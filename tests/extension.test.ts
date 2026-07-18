@@ -135,6 +135,18 @@ describe('TMPoseExtension', () => {
     expect(extension.accumulatedPoseReporter()).toBe('jump');
   });
 
+  it('reports the unrounded accumulated score used by threshold selection', () => {
+    const extension = new TMPoseExtension({temporalPoseScoring: true});
+    extension.setAccumulatedPoseParameters({ACCUMULATION: 1, DECAY: 1});
+    extension.setAccumulatedPoseThreshold({THRESHOLD: 0.5});
+    extension.startAccumulatedPoseSession(0);
+
+    extension.updateAccumulatedPose([{className: 'jump', probability: 0.499}], 1000);
+    expect(extension.accumulatedScoreReporter()).toBe(0.499);
+    expect(extension.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(0.499);
+    expect(extension.accumulatedPoseReporter()).toBe('');
+  });
+
   it('normalizes accumulation by elapsed time across prediction rates', () => {
     const lowFps = new TMPoseExtension({temporalPoseScoring: true});
     const highFps = new TMPoseExtension({temporalPoseScoring: true});
@@ -151,7 +163,7 @@ describe('TMPoseExtension', () => {
     }
 
     expect(lowFps.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(1);
-    expect(highFps.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(1);
+    expect(highFps.accumulatedPoseScoreReporter({NAME: 'jump'})).toBeCloseTo(1, 12);
   });
 
   it('pauses accumulation and decay while the document is hidden', () => {
