@@ -121,6 +121,11 @@ export class TMPoseExtension {
     this.modelLoadMs = 0;
     this.firstPredictMs = 0;
     this.lastError = '';
+    this.accumulatedPosePausedForBackground = document.visibilityState === 'hidden';
+    this.visibilityChangeListener = () => this.handleDocumentVisibilityChange();
+    if (this.featureFlags.temporalPoseScoring) {
+      document.addEventListener('visibilitychange', this.visibilityChangeListener);
+    }
   }
 
   getInfo() {
@@ -491,7 +496,24 @@ export class TMPoseExtension {
     this.lastAccumulationTime = this.predicting ? performance.now() : null;
   }
 
+  handleDocumentVisibilityChange() {
+    if (document.visibilityState === 'hidden') {
+      this.accumulatedPosePausedForBackground = true;
+      return;
+    }
+    if (this.accumulatedPosePausedForBackground) {
+      this.accumulatedPosePausedForBackground = false;
+      this.lastAccumulationTime = this.predicting ? performance.now() : null;
+    }
+  }
+
   updateAccumulatedPose(prediction, now = performance.now()) {
+    if (document.visibilityState === 'hidden') {
+      this.accumulatedPosePausedForBackground = true;
+      return;
+    }
+    if (this.accumulatedPosePausedForBackground) return;
+
     const elapsedSeconds = this.lastAccumulationTime === null
       ? 0
       : Math.max(0, (now - this.lastAccumulationTime) / 1000);
