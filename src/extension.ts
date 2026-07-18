@@ -89,6 +89,10 @@ function canvasScore(width: number, height: number): number {
   return area / (1 + aspectPenalty * 4);
 }
 
+function isDocumentHidden(): boolean {
+  return typeof document !== 'undefined' && document.visibilityState === 'hidden';
+}
+
 export class TMPoseExtension {
   [key: string]: any;
 
@@ -121,9 +125,9 @@ export class TMPoseExtension {
     this.modelLoadMs = 0;
     this.firstPredictMs = 0;
     this.lastError = '';
-    this.accumulatedPosePausedForBackground = document.visibilityState === 'hidden';
+    this.accumulatedPosePausedForBackground = isDocumentHidden();
     this.visibilityChangeListener = () => this.handleDocumentVisibilityChange();
-    if (this.featureFlags.temporalPoseScoring) {
+    if (this.featureFlags.temporalPoseScoring && typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', this.visibilityChangeListener);
     }
   }
@@ -497,7 +501,8 @@ export class TMPoseExtension {
   }
 
   handleDocumentVisibilityChange() {
-    if (document.visibilityState === 'hidden') {
+    if (typeof document === 'undefined') return;
+    if (isDocumentHidden()) {
       this.accumulatedPosePausedForBackground = true;
       return;
     }
@@ -508,7 +513,7 @@ export class TMPoseExtension {
   }
 
   updateAccumulatedPose(prediction, now = performance.now()) {
-    if (document.visibilityState === 'hidden') {
+    if (isDocumentHidden()) {
       this.accumulatedPosePausedForBackground = true;
       return;
     }

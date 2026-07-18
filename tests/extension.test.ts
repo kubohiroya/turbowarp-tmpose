@@ -187,6 +187,17 @@ describe('TMPoseExtension', () => {
     expect(extension.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(0.5);
   });
 
+  it('supports accumulated scoring when document is unavailable', () => {
+    vi.stubGlobal('document', undefined);
+    const extension = new TMPoseExtension({temporalPoseScoring: true});
+    extension.setAccumulatedPoseParameters({ACCUMULATION: 1, DECAY: 1});
+    extension.startAccumulatedPoseSession(0);
+
+    expect(() => extension.handleDocumentVisibilityChange()).not.toThrow();
+    extension.updateAccumulatedPose([{className: 'jump', probability: 1}], 1000);
+    expect(extension.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(1);
+  });
+
   it('applies decay changes made during recognition to the next session', async () => {
     const extension = new TMPoseExtension({temporalPoseScoring: true});
     extension.cameraRunning = true;
