@@ -2,6 +2,27 @@
 
 A TurboWarp extension for camera-based pose recognition using Teachable Machine Pose models.
 
+## Installation
+
+This is an unsandboxed TurboWarp extension. Download [`dist/tmpose.js`](dist/tmpose.js), then load it
+from TurboWarp's custom extension dialog with **Run extension without sandbox** enabled.
+
+The published package can also be installed with pnpm:
+
+```sh
+pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.3.0
+```
+
+The browser-ready extension is available at `dist/tmpose.js`. After publication, it can also be
+loaded directly from this version-pinned URL:
+
+```text
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.3.0/dist/tmpose.js
+```
+
+Camera permission and network access are required. At runtime, the extension loads TensorFlow.js
+and the Teachable Machine Pose library from jsDelivr.
+
 ## Features
 
 - load a Teachable Machine Pose model from its model URL;

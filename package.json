@@ -1,8 +1,30 @@
 {
-  "name": "turbowarp-tmpose",
+  "name": "@kubohiroya/turbowarp-tmpose",
   "version": "1.3.0",
-  "private": true,
+  "description": "A TurboWarp extension for camera-based pose recognition using Teachable Machine Pose models.",
+  "author": "Hiroya Kubo <hiroya@cuc.ac.jp>",
+  "license": "MPL-2.0",
+  "homepage": "https://github.com/kubohiroya/turbowarp-tmpose#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kubohiroya/turbowarp-tmpose.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kubohiroya/turbowarp-tmpose/issues"
+  },
   "type": "module",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "unpkg": "./dist/tmpose.js",
+  "jsdelivr": "./dist/tmpose.js",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "packageManager": "pnpm@11.11.0",
   "scripts": {
     "dev": "vite build --watch",
     "typecheck": "tsc --noEmit",
@@ -10,12 +32,24 @@
     "test": "vitest run",
     "docs": "node scripts/generate-readme.mjs",
     "docs:check": "npm run docs && git diff --exit-code -- README.md",
-    "check": "npm run typecheck && npm run test && npm run build && npm run docs:check"
+    "check:dist": "npm run build && git diff --exit-code -- dist",
+    "pack:check": "npm pack --dry-run --ignore-scripts",
+    "release:check": "npm publish --dry-run --access public",
+    "check": "npm run typecheck && npm run test && npm run build && npm run docs:check && npm run check:dist && npm run pack:check",
+    "prepack": "npm run check"
   },
   "devDependencies": {
-    "@kubohiroya/vite-plugin-turbowarp-extension": "github:kubohiroya/vite-plugin-turbowarp-extension#a96b1ad92a5b9954d99c68b5e4a318c0722ec9e6",
+    "@kubohiroya/vite-plugin-turbowarp-extension": "0.1.0",
     "typescript": "^5.9.3",
     "vite": "^7.0.0",
     "vitest": "^4.0.14"
-  }
+  },
+  "keywords": [
+    "turbowarp",
+    "scratch",
+    "extension",
+    "pose",
+    "camera",
+    "teachable-machine"
+  ]
 }
