@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {DOCS_URI, TMPoseExtension} from '../src/extension.js';
+import {DOCS_URI, TMPoseExtension, VERSION} from '../src/extension.js';
 
 const visibleRect = {left: 0, top: 0, right: 480, bottom: 360, width: 480, height: 360};
 
@@ -73,6 +73,8 @@ describe('TMPoseExtension', () => {
     expect(info.id).toBe('tmpose');
     expect(info.docsURI).toBe(DOCS_URI);
     expect(info.docsURI).toBe('https://kubohiroya.github.io/turbowarp-tmpose/');
+    expect(new TMPoseExtension().versionReporter()).toBe(VERSION);
+    expect(VERSION).toBe('1.4.0-typescript');
     expect(info.blocks).toHaveLength(24);
   });
 
