@@ -1,73 +1,147 @@
 # TurboWarp TMPose
 
-A TurboWarp extension for camera-based pose recognition using Teachable Machine Pose models.
+Use a [Teachable Machine Pose](https://teachablemachine.withgoogle.com/train/pose) model as a
+camera-based input for TurboWarp projects. TMPose turns each camera frame into pose labels,
+confidence scores, and Boolean conditions that Scratch-style scripts can use.
+
+**[Open the illustrated user guide (English)](https://kubohiroya.github.io/turbowarp-tmpose/)** ·
+**[日本語ガイド](https://kubohiroya.github.io/turbowarp-tmpose/ja/)** ·
+[Block reference](#blocks)
+
+## What TMPose does
+
+```mermaid
+flowchart LR
+    Camera["Camera frame"] --> Estimate["Pose estimation"]
+    Estimate --> Model["Teachable Machine model"]
+    Model --> Scores["Class probabilities"]
+    Scores --> Blocks["TurboWarp blocks"]
+```
+
+- loads a published Teachable Machine Pose model;
+- starts and stops the camera independently from recognition;
+- places a configurable camera preview over the TurboWarp stage;
+- reports the best pose, its confidence, and the confidence of any named pose;
+- tests poses with a fixed or custom confidence threshold;
+- optionally smooths decisions with time-decayed accumulated scores;
+- reports startup timings and explicit runtime errors.
+
+The [illustrated guide](https://kubohiroya.github.io/turbowarp-tmpose/) explains the complete flow,
+preview layout, score behavior, privacy, and troubleshooting. English is the default; the
+[Japanese version](https://kubohiroya.github.io/turbowarp-tmpose/ja/) has the same content.
+
+## Requirements
+
+- a published Teachable Machine Pose model URL;
+- a camera and permission to use it in the browser;
+- network access for TensorFlow.js, the Teachable Machine Pose library, and the model files;
+- TurboWarp's **Run extension without sandbox** option.
+
+> [!IMPORTANT]
+> TMPose is an unsandboxed extension because it needs camera and stage access. Only load extension
+> code you trust. Camera APIs also require a secure browser context such as HTTPS or localhost.
 
 ## Installation
 
-This is an unsandboxed TurboWarp extension. Download [`dist/tmpose.js`](dist/tmpose.js), then load it
-from TurboWarp's custom extension dialog with **Run extension without sandbox** enabled.
+Download [`dist/tmpose.js`](dist/tmpose.js), then load it from TurboWarp's custom extension dialog
+with **Run extension without sandbox** enabled.
 
-The published package can also be installed with pnpm:
-
-```sh
-pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.3.0
-```
-
-The browser-ready extension is available at `dist/tmpose.js`. After publication, it can also be
-loaded directly from this version-pinned URL:
+The browser-ready, version-pinned build is also available from jsDelivr:
 
 ```text
 https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.3.0/dist/tmpose.js
 ```
 
-Camera permission and network access are required. At runtime, the extension loads TensorFlow.js
-and the Teachable Machine Pose library from jsDelivr.
+To add the published package to another project:
 
-## Features
+```sh
+pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.3.0
+```
 
-- load a Teachable Machine Pose model from its model URL;
-- start and stop the camera;
-- show the camera preview inside the TurboWarp stage area;
-- start and stop continuous recognition;
-- report the current pose and confidence scores;
-- optionally report time-decayed accumulated pose scores;
-- expose startup and model-loading timing measurements;
-- report explicit runtime errors instead of silently failing.
+## Quick start
 
-Accumulated pose scoring is staged behind the `temporalPoseScoring` feature flag, which is off by default.
-When enabled, each recognition update uses
-`previous × activeDecayCoefficient^elapsedSeconds + currentProbability × accumulationCoefficient × elapsedSeconds`.
-The accumulation coefficient is a per-second rate, and the decay coefficient is the fraction retained after one second.
-Decay changes made during recognition apply when recognition is next started.
-When the browser document becomes hidden, accumulated pose addition and decay both pause.
-When the document becomes visible again, timing resumes from that moment, so time spent in the
-background is excluded from the next accumulated-score update.
+1. Train pose classes such as `jump` and `stand` in Teachable Machine.
+2. Export the model, upload it, and copy the model folder URL.
+3. Set that URL with `set model URL to [URL]`.
+4. Run `start recognition`, allow camera access, and use a result block in your script.
+
+```text
+when green flag clicked
+set model URL to [https://teachablemachine.withgoogle.com/models/.../]
+start recognition
+
+forever
+  if <pose is [jump] with confidence at least [0.75]?> then
+    ...
+  end
+end
+```
+
+`start recognition` starts the camera and loads the configured model when necessary. A separate
+`start camera` or `load model` step is only needed when a project wants to control startup phases
+individually.
+
+## Reading recognition results
+
+| Block | Result |
+|---|---|
+| `current pose` | Class with the highest probability in the latest frame |
+| `confidence` | Current pose probability, rounded to two decimal places |
+| `confidence of [NAME]` | Probability of one named class |
+| `pose is [NAME]?` | Whether the named class has at least `0.75` confidence |
+| `pose is [NAME] with confidence at least [THRESHOLD]?` | Same test with a custom `0`–`1` threshold |
+
+Live confidence reacts quickly and can fluctuate near a decision boundary. Better training data,
+lighting, camera framing, and a suitable threshold usually improve the result.
+
+## Camera preview and stopping
+
+The preview is a camera canvas placed over the TurboWarp stage. It can be shown, hidden, moved to
+six stage positions, made transparent, or expanded to fill the stage. Hiding the preview does not
+stop recognition.
+
+- `stop recognition` clears current results but leaves the camera available;
+- `stop camera` also stops recognition, releases the camera tracks, and removes the preview.
+
+TMPose performs pose estimation and classification in the browser and does not upload camera
+frames. It does fetch its runtime libraries and the published model. Stop the camera when the
+project no longer needs it.
+
+## Optional accumulated pose scoring
+
+The `temporalPoseScoring` feature flag is **off by default**. Builds that enable it can combine
+evidence over time for poses that should be held steadily:
+
+```text
+previous × decay^elapsedSeconds + probability × accumulation × elapsedSeconds
+```
+
+The accumulation coefficient is a per-second rate. The decay coefficient is the fraction retained
+after one second and is clamped to `0`–`1`; changes to decay take effect the next time recognition
+starts. Accumulation and decay both pause while the document is hidden.
+
+`accumulated pose` returns the highest positive accumulated pose only when it meets the configured
+threshold, or an empty string otherwise. The accumulated score reporters continue to return their
+unrounded values below that threshold. Resetting or stopping recognition clears all accumulated
+scores.
 
 ### Accumulated pose change events
 
-The optional `accumulatedPoseEvents` feature flag publishes accumulated pose name transitions for
-other unsandboxed extensions. It is off by default and requires `temporalPoseScoring`.
-Consumers can check `runtime.ext_tmpose.supportsAccumulatedPoseEvents()` and subscribe to
+The `accumulatedPoseEvents` feature flag is also **off by default** and requires
+`temporalPoseScoring`. When both are enabled, other unsandboxed extensions can check
+`runtime.ext_tmpose.supportsAccumulatedPoseEvents()` and subscribe to
 `TMPOSE_ACCUMULATED_POSE_CHANGED` on the TurboWarp runtime.
 
-Each event carries a version 1 payload with `poseName`, `previousPoseName`, `score`,
-`reason` (`prediction`, `reset`, or `stop`), and a monotonic `timestamp`.
-Score-only updates do not emit an event. Resetting or stopping recognition emits one transition
-to an empty pose when a pose was previously selected.
+Each version 1 event includes `poseName`, `previousPoseName`, `score`, `reason` (`prediction`,
+`reset`, or `stop`), and a monotonic `timestamp`. Score-only updates do not emit an event.
 
-### `accumulated pose` threshold and empty result
+## Troubleshooting
 
-The accumulated pose threshold is `0` by default and can be changed with
-`set accumulated pose threshold [THRESHOLD]`.
-`accumulated pose` returns the pose with the highest positive accumulated score only when that score
-is greater than or equal to the threshold. It returns an empty string (`""`) while the score is below
-the threshold, and returns to an empty string if decay later lowers the score below the threshold.
-Changing the threshold immediately reevaluates the scores already accumulated.
-
-`accumulated score` and `accumulated score of [NAME]` continue to return their raw accumulated values
-without rounding, using the same numeric precision as threshold selection, even while `accumulated pose`
-is empty. Before the first usable prediction, immediately after reset, or after recognition or the
-camera is stopped, `accumulated pose` is empty and `accumulated score` is `0`.
+Read `last error` first when setup fails. Common causes are denied camera permission, a model editor
+URL instead of the published model folder URL, blocked network requests, or loading TMPose in the
+sandbox. See the illustrated guide's [troubleshooting section](https://kubohiroya.github.io/turbowarp-tmpose/#troubleshooting)
+or [Japanese troubleshooting section](https://kubohiroya.github.io/turbowarp-tmpose/ja/#troubleshooting)
+for step-by-step checks.
 
 ## Blocks
 
@@ -365,11 +439,14 @@ Returns the latest recorded error message.
 ## Development
 
 ```bash
-npm install
-npm run check
+corepack enable
+pnpm install --frozen-lockfile
+pnpm check
 ```
 
-The build produces `dist/tmpose.js`. Load it as an unsandboxed custom extension.
+The check runs type checking, tests, the production build, generated-documentation validation,
+Pages link validation, distribution reproducibility, and an npm package dry run. The build produces
+`dist/tmpose.js`.
 
 ## External libraries
 
