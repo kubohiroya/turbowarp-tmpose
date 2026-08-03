@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Illustrated user guide for the TMPose TurboWarp extension: connect a Teachable Machine Pose model, recognize poses, and use the results.">
+  <title>TMPose user guide</title>
+  <link rel="canonical" href="https://kubohiroya.github.io/turbowarp-tmpose/">
+  <link rel="alternate" hreflang="en" href="https://kubohiroya.github.io/turbowarp-tmpose/">
+  <link rel="alternate" hreflang="ja" href="https://kubohiroya.github.io/turbowarp-tmpose/ja/">
+  <link rel="alternate" hreflang="x-default" href="https://kubohiroya.github.io/turbowarp-tmpose/">
+  <link rel="stylesheet" href="./assets/site.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="./" aria-label="TMPose user guide home">
+        <span class="brand-mark">TM</span>
+        <span>TMPose</span>
+      </a>
+      <nav class="top-links" aria-label="Primary navigation">
+        <a href="#quick-start">Quick start</a>
+        <a href="#how-it-works">How it works</a>
+        <a href="#block-guide">Blocks</a>
+        <a class="language" href="./ja/" lang="ja" hreflang="ja">日本語</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div>
+        <p class="eyebrow">TurboWarp extension · user guide</p>
+        <h1 id="hero-title">Turn movement into <span>project input.</span></h1>
+        <p class="lede">TMPose connects a Teachable Machine Pose model to TurboWarp. Your camera frame becomes pose probabilities that scripts can read as labels, scores, and Boolean conditions.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="#quick-start">Build your first script</a>
+          <a class="button" href="https://github.com/kubohiroya/turbowarp-tmpose">View source on GitHub</a>
+        </div>
+      </div>
+
+      <figure class="hero-visual" aria-label="A camera pose is recognized as the label jump with 91 percent confidence">
+        <div class="camera-card">
+          <div class="camera-bar"><span>Camera preview</span><span class="live-dot">LIVE</span></div>
+          <div class="camera-frame">
+            <svg viewBox="0 0 360 270" role="img" aria-label="Pose skeleton raising both arms">
+              <rect class="pose-box" x="91" y="22" width="178" height="229" rx="18"/>
+              <line class="pose-line" x1="180" y1="72" x2="180" y2="158"/>
+              <line class="pose-line" x1="180" y1="98" x2="120" y2="48"/>
+              <line class="pose-line" x1="120" y1="48" x2="82" y2="22"/>
+              <line class="pose-line" x1="180" y1="98" x2="240" y2="48"/>
+              <line class="pose-line" x1="240" y1="48" x2="278" y2="22"/>
+              <line class="pose-line" x1="180" y1="158" x2="135" y2="230"/>
+              <line class="pose-line" x1="180" y1="158" x2="225" y2="230"/>
+              <circle class="pose-joint" cx="180" cy="55" r="16"/>
+              <circle class="pose-joint" cx="180" cy="98" r="7"/>
+              <circle class="pose-joint" cx="120" cy="48" r="7"/>
+              <circle class="pose-joint" cx="82" cy="22" r="7"/>
+              <circle class="pose-joint" cx="240" cy="48" r="7"/>
+              <circle class="pose-joint" cx="278" cy="22" r="7"/>
+              <circle class="pose-joint" cx="180" cy="158" r="7"/>
+              <circle class="pose-joint" cx="135" cy="230" r="7"/>
+              <circle class="pose-joint" cx="225" cy="230" r="7"/>
+            </svg>
+          </div>
+        </div>
+        <div class="data-arrow">FRAME<br>↓<br>PROBABILITIES</div>
+        <div class="result-card">
+          <div class="result-label">Current pose</div>
+          <div class="result-value"><span>jump</span><small>0.91</small></div>
+          <div class="meter" aria-label="Confidence 0.91"><span></span></div>
+        </div>
+      </figure>
+    </section>
+
+    <section class="section tint" id="quick-start" aria-labelledby="quick-start-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Quick start</p>
+          <h2 id="quick-start-title">From model to motion in four steps</h2>
+        </div>
+        <p>You need a published Teachable Machine Pose model, a camera, and network access. Load TMPose as a custom extension with <strong>Run extension without sandbox</strong> enabled, then place these blocks in order.</p>
+      </div>
+
+      <div class="flow" aria-label="Four-step setup flow">
+        <article class="flow-step">
+          <span class="step-number">1</span>
+          <h3>Train and publish</h3>
+          <p>In Teachable Machine, give each pose a useful class name such as <code>jump</code> or <code>stand</code>. Export the model and copy its share URL.</p>
+        </article>
+        <article class="flow-step">
+          <span class="step-number">2</span>
+          <h3>Set the model URL</h3>
+          <p>Paste the model folder URL. A missing trailing slash is added automatically.</p>
+        </article>
+        <article class="flow-step">
+          <span class="step-number">3</span>
+          <h3>Start recognition</h3>
+          <p>Allow camera access. TMPose starts the camera and loads the model automatically if needed.</p>
+        </article>
+        <article class="flow-step">
+          <span class="step-number">4</span>
+          <h3>Use the result</h3>
+          <p>Read the top label, test one pose, or use a confidence value to control your project.</p>
+        </article>
+      </div>
+
+      <div class="block-stack" aria-label="Example TurboWarp script">
+        <div class="block control"><span>when green flag clicked</span></div>
+        <div class="block"><span>set model URL to</span><span class="block-value">https://teachablemachine.withgoogle.com/models/…/</span></div>
+        <div class="block"><span>start recognition</span></div>
+        <div class="block control"><span>forever</span></div>
+        <div class="block sensing"><span>if pose is jump with confidence at least</span><span class="block-value">0.75</span></div>
+      </div>
+
+      <aside class="note">
+        <span class="note-icon" aria-hidden="true">!</span>
+        <p><strong>Load it unsandboxed.</strong> Camera access and stage preview integration require TurboWarp’s “Run extension without sandbox” option. Only load extension code you trust.</p>
+      </aside>
+    </section>
+
+    <section class="section" id="how-it-works" aria-labelledby="how-it-works-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">How it works</p>
+          <h2 id="how-it-works-title">One frame, several useful answers</h2>
+        </div>
+        <p>While recognition is running, TMPose repeatedly samples the camera, runs the model in the browser, and stores a probability for every class in your model.</p>
+      </div>
+
+      <figure>
+        <div class="pipeline" role="img" aria-label="Camera frame flows through pose estimation and the Teachable Machine model to label, score, and Boolean reporter blocks">
+          <div class="pipeline-node"><span class="pipeline-icon">▣</span><div><strong>Camera frame</strong><small>live image</small></div></div>
+          <span class="pipeline-arrow" aria-hidden="true">→</span>
+          <div class="pipeline-node"><span class="pipeline-icon">⌁</span><div><strong>Pose estimate</strong><small>body keypoints</small></div></div>
+          <span class="pipeline-arrow" aria-hidden="true">→</span>
+          <div class="pipeline-node"><span class="pipeline-icon">%</span><div><strong>Class scores</strong><small>0 to 1 each</small></div></div>
+          <span class="pipeline-arrow" aria-hidden="true">→</span>
+          <div class="pipeline-node"><span class="pipeline-icon">✓</span><div><strong>Blocks</strong><small>label · score · test</small></div></div>
+        </div>
+        <figcaption class="note">
+          <span class="note-icon" aria-hidden="true">i</span>
+          <p><code>current pose</code> is the class with the highest probability. <code>confidence</code> is that class’s score, rounded to two decimal places. <code>confidence of [NAME]</code> reads one named class.</p>
+        </figcaption>
+      </figure>
+
+      <div class="split-grid" style="margin-top: 28px">
+        <article class="detail-card">
+          <h3>The preview sits on the stage</h3>
+          <p>The preview is a camera canvas placed over the TurboWarp stage. It does not become a sprite and does not change model input when hidden.</p>
+          <div class="mini-stage" aria-label="Preview in the bottom-right of the stage"><span class="preview-window">camera</span></div>
+          <div class="position-list" aria-label="Available preview positions">
+            <span>top-left</span><span>top-right</span><span>bottom-left</span><span>bottom-right</span><span>center</span><span>full-stage</span>
+          </div>
+        </article>
+        <article class="detail-card">
+          <h3>Start and stop are explicit</h3>
+          <ul class="checklist">
+            <li><code>start camera</code> opens the camera and displays the preview.</li>
+            <li><code>start recognition</code> also starts the camera and loads the model when necessary.</li>
+            <li><code>stop recognition</code> clears live results but leaves the camera available.</li>
+            <li><code>stop camera</code> stops recognition, releases media tracks, and removes the preview.</li>
+            <li><code>hide camera preview</code> only changes what is shown; recognition can continue.</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section tint" id="scores" aria-labelledby="scores-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Choosing a result</p>
+          <h2 id="scores-title">React now—or smooth motion over time</h2>
+        </div>
+        <p>Default builds expose immediate probabilities. Builds that enable the optional <code>temporalPoseScoring</code> feature also expose accumulated scores for steadier decisions.</p>
+      </div>
+
+      <div class="score-grid">
+        <article class="score-card current">
+          <span class="tag">Default</span>
+          <h3>Current confidence</h3>
+          <p>Best for quick gestures. The answer follows every frame, so it reacts fast but may flicker near a decision boundary.</p>
+          <svg class="score-chart" viewBox="0 0 420 190" role="img" aria-label="A current confidence line that changes rapidly across a threshold">
+            <line class="chart-grid" x1="30" y1="30" x2="30" y2="160"/>
+            <line class="chart-grid" x1="30" y1="160" x2="400" y2="160"/>
+            <line class="chart-threshold" x1="30" y1="82" x2="400" y2="82"/>
+            <polyline class="chart-current" points="30,143 68,128 106,66 144,94 182,51 220,90 258,55 296,62 334,47 372,57 400,42"/>
+          </svg>
+          <div class="legend"><span style="--legend-color: var(--coral)">confidence per frame</span><span style="--legend-color: var(--gold)">threshold</span></div>
+          <p style="margin-top: 18px">Use <code>pose is [NAME] with confidence at least [THRESHOLD]?</code>. Thresholds are clamped to 0–1; <code>0.75</code> is a practical starting point.</p>
+        </article>
+
+        <article class="score-card accumulated">
+          <span class="tag">Optional feature</span>
+          <h3>Accumulated score</h3>
+          <p>Best for sustained poses. Evidence is added over elapsed time while older evidence decays, reducing one-frame changes.</p>
+          <svg class="score-chart" viewBox="0 0 420 190" role="img" aria-label="An accumulated score line that rises smoothly above a threshold and later decays">
+            <line class="chart-grid" x1="30" y1="30" x2="30" y2="160"/>
+            <line class="chart-grid" x1="30" y1="160" x2="400" y2="160"/>
+            <line class="chart-threshold" x1="30" y1="82" x2="400" y2="82"/>
+            <path class="chart-accumulated" d="M30 150 C80 146 108 134 145 112 S210 70 252 55 S325 50 400 105"/>
+          </svg>
+          <div class="legend"><span style="--legend-color: var(--teal)">accumulated score</span><span style="--legend-color: var(--gold)">threshold</span></div>
+          <div class="formula" aria-label="Accumulated score formula">previous × decay<sup>seconds</sup> + probability × accumulation × seconds</div>
+          <p style="margin-top: 18px">The reporter returns an empty label until the best positive score reaches the threshold. Hidden-tab time is excluded. Stopping recognition or resetting clears all accumulated scores.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="block-guide" aria-labelledby="block-guide-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Block guide</p>
+          <h2 id="block-guide-title">Pick the block for the job</h2>
+        </div>
+        <p>Reporter values are empty or zero before the first usable prediction and after recognition stops. Boolean status blocks are useful when coordinating startup.</p>
+      </div>
+
+      <div class="card-grid">
+        <article class="reference-card">
+          <h3>Model setup</h3>
+          <p>Configure and check the Teachable Machine model.</p>
+          <ul>
+            <li><code>set model URL to [URL]</code> changes the model and clears the previously loaded one.</li>
+            <li><code>load model</code> fetches <code>model.json</code> and <code>metadata.json</code>.</li>
+            <li><code>model is loaded?</code> reports readiness.</li>
+            <li><code>TMPose version</code> reports the extension build.</li>
+          </ul>
+        </article>
+        <article class="reference-card">
+          <h3>Camera and preview</h3>
+          <p>Control capture separately from recognition.</p>
+          <ul>
+            <li><code>start camera</code> · <code>stop camera</code> · <code>camera is running?</code></li>
+            <li><code>show camera preview</code> · <code>hide camera preview</code></li>
+            <li><code>camera preview is visible?</code></li>
+            <li><code>set camera preview opacity to [OPACITY]</code> clamps opacity to 0–1.</li>
+            <li><code>set camera preview position to [POSITION]</code></li>
+          </ul>
+        </article>
+        <article class="reference-card">
+          <h3>Recognition and results</h3>
+          <p>Start the loop, read scores, and make decisions.</p>
+          <ul>
+            <li><code>start recognition</code> · <code>stop recognition</code> · <code>recognition is running?</code></li>
+            <li><code>current pose</code> · <code>confidence</code> · <code>confidence of [NAME]</code></li>
+            <li><code>pose is [NAME]?</code> uses a fixed 0.75 threshold.</li>
+            <li><code>pose is [NAME] with confidence at least [THRESHOLD]?</code></li>
+          </ul>
+        </article>
+        <article class="reference-card">
+          <h3>Timing and errors</h3>
+          <p>Measure startup and show useful failure details.</p>
+          <ul>
+            <li><code>camera startup time (ms)</code></li>
+            <li><code>model load time (ms)</code></li>
+            <li><code>first recognition time (ms)</code></li>
+            <li><code>last error</code> keeps the latest runtime error message.</li>
+          </ul>
+        </article>
+        <article class="reference-card wide">
+          <h3>Optional accumulated-pose blocks</h3>
+          <p>These blocks appear only when the extension build enables <code>temporalPoseScoring</code>: <code>set accumulated pose accumulation [ACCUMULATION] decay [DECAY]</code>, <code>set accumulated pose threshold [THRESHOLD]</code>, <code>reset accumulated pose scores</code>, <code>accumulated pose</code>, <code>accumulated score</code>, and <code>accumulated score of [NAME]</code>. Decay is the fraction retained after one second (0–1), and a decay change takes effect the next time recognition starts.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section tint" id="troubleshooting" aria-labelledby="troubleshooting-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Troubleshooting</p>
+          <h2 id="troubleshooting-title">When the result is not what you expect</h2>
+        </div>
+        <p>Check <code>last error</code> first. Most setup failures come from permissions, an incorrect model URL, blocked network requests, or loading the extension in the sandbox.</p>
+      </div>
+
+      <div class="troubleshooting">
+        <details open>
+          <summary>The camera does not start</summary>
+          <p>Allow camera permission for the TurboWarp page and make sure another application is not exclusively using the camera. The page must run in a secure context (HTTPS or localhost). Then run <code>start camera</code> again.</p>
+        </details>
+        <details>
+          <summary>The model does not load</summary>
+          <p>Use the published Teachable Machine model folder URL—not a link to the editor or an individual JSON file. TMPose appends <code>model.json</code> and <code>metadata.json</code> to that URL. Confirm that the network allows jsDelivr and Teachable Machine model hosting.</p>
+        </details>
+        <details>
+          <summary>The pose label is unstable</summary>
+          <p>Add more varied training examples, keep the whole body visible, improve lighting, and test a threshold such as 0.75. If your build exposes accumulated-pose blocks, use them for a pose that must be held for a short time.</p>
+        </details>
+        <details>
+          <summary>The preview is missing but recognition works</summary>
+          <p>Run <code>show camera preview</code>, set opacity above zero, and choose a supported position. Packaged projects with a modified stage DOM may not support preview attachment; <code>last error</code> explains stage-detection failures.</p>
+        </details>
+      </div>
+
+      <aside class="note">
+        <span class="note-icon" aria-hidden="true">🔒</span>
+        <p><strong>Camera privacy:</strong> TMPose performs pose estimation and classification in your browser and does not upload camera frames. It does fetch the TensorFlow.js library, the Teachable Machine Pose library, and your published model. Stop the camera when your project no longer needs it.</p>
+      </aside>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <p><strong>TMPose</strong> · TurboWarp + Teachable Machine Pose</p>
+      <p><a href="https://github.com/kubohiroya/turbowarp-tmpose/issues">Report a problem</a> · <a href="./ja/" lang="ja" hreflang="ja">日本語版</a></p>
+    </div>
+  </footer>
+</body>
+</html>

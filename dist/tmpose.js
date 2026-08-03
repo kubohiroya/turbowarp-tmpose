@@ -19,6 +19,7 @@
   };
   const EXTENSION_ID = "tmpose";
   const VERSION = "1.3.0-typescript";
+  const DOCS_URI = "https://kubohiroya.github.io/turbowarp-tmpose/";
   const ACCUMULATED_POSE_CHANGED_EVENT = "TMPOSE_ACCUMULATED_POSE_CHANGED";
   const TFJS_URL = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js";
   const TMPOSE_URL = "https://cdn.jsdelivr.net/npm/@teachablemachine/pose@0.8.3/dist/teachablemachine-pose.min.js";
@@ -141,6 +142,7 @@
       return {
         id: EXTENSION_ID,
         name: Scratch.translate(definitions.extensionName),
+        docsURI: DOCS_URI,
         blocks: definitions.blocks.filter((block) => !block.featureFlag || this.featureFlags[block.featureFlag]).map((block) => ({
           opcode: block.opcode,
           blockType: Scratch.BlockType[block.blockType],

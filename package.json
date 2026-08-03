@@ -32,10 +32,11 @@
     "test": "vitest run",
     "docs": "node scripts/generate-readme.mjs",
     "docs:check": "npm run docs && git diff --exit-code -- README.md",
+    "docs:pages:check": "node scripts/check-pages.mjs",
     "check:dist": "npm run build && git diff --exit-code -- dist",
     "pack:check": "npm pack --dry-run --ignore-scripts",
     "release:check": "npm publish --dry-run --access public",
-    "check": "npm run typecheck && npm run test && npm run build && npm run docs:check && npm run check:dist && npm run pack:check",
+    "check": "npm run typecheck && npm run test && npm run build && npm run docs:check && npm run docs:pages:check && npm run check:dist && npm run pack:check",
     "prepack": "npm run check"
   },
   "devDependencies": {
