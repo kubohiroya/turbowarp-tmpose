@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="TMPose TurboWarp拡張機能の図解付き利用者ガイド。Teachable Machine Poseモデルを接続し、ポーズを認識して結果を利用する方法を説明します。">
+  <title>TMPose 利用者ガイド</title>
+  <link rel="canonical" href="https://kubohiroya.github.io/turbowarp-tmpose/ja/">
+  <link rel="alternate" hreflang="en" href="https://kubohiroya.github.io/turbowarp-tmpose/">
+  <link rel="alternate" hreflang="ja" href="https://kubohiroya.github.io/turbowarp-tmpose/ja/">
+  <link rel="alternate" hreflang="x-default" href="https://kubohiroya.github.io/turbowarp-tmpose/">
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">本文へ移動</a>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="../" aria-label="TMPose 利用者ガイドのトップ">
+        <span class="brand-mark">TM</span>
+        <span>TMPose</span>
+      </a>
+      <nav class="top-links" aria-label="メインナビゲーション">
+        <a href="#quick-start">クイックスタート</a>
+        <a href="#how-it-works">動作のしくみ</a>
+        <a href="#block-guide">ブロック</a>
+        <a class="language" href="../" lang="en" hreflang="en">English</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div>
+        <p class="eyebrow">TurboWarp 拡張機能 · 利用者ガイド</p>
+        <h1 id="hero-title">体の動きを<span>プロジェクトの入力</span>に。</h1>
+        <p class="lede">TMPose は Teachable Machine Pose モデルを TurboWarp に接続します。カメラ映像がポーズごとの確率になり、ラベル、スコア、真偽値としてスクリプトから利用できます。</p>
+        <div class="hero-actions">
+          <a class="button primary" href="#quick-start">最初のスクリプトを作る</a>
+          <a class="button" href="https://github.com/kubohiroya/turbowarp-tmpose">GitHub でソースを見る</a>
+        </div>
+      </div>
+
+      <figure class="hero-visual" aria-label="カメラのポーズが信頼度91パーセントのjumpとして認識される図">
+        <div class="camera-card">
+          <div class="camera-bar"><span>カメラプレビュー</span><span class="live-dot">認識中</span></div>
+          <div class="camera-frame">
+            <svg viewBox="0 0 360 270" role="img" aria-label="両腕を上げたポーズの骨格">
+              <rect class="pose-box" x="91" y="22" width="178" height="229" rx="18"/>
+              <line class="pose-line" x1="180" y1="72" x2="180" y2="158"/>
+              <line class="pose-line" x1="180" y1="98" x2="120" y2="48"/>
+              <line class="pose-line" x1="120" y1="48" x2="82" y2="22"/>
+              <line class="pose-line" x1="180" y1="98" x2="240" y2="48"/>
+              <line class="pose-line" x1="240" y1="48" x2="278" y2="22"/>
+              <line class="pose-line" x1="180" y1="158" x2="135" y2="230"/>
+              <line class="pose-line" x1="180" y1="158" x2="225" y2="230"/>
+              <circle class="pose-joint" cx="180" cy="55" r="16"/>
+              <circle class="pose-joint" cx="180" cy="98" r="7"/>
+              <circle class="pose-joint" cx="120" cy="48" r="7"/>
+              <circle class="pose-joint" cx="82" cy="22" r="7"/>
+              <circle class="pose-joint" cx="240" cy="48" r="7"/>
+              <circle class="pose-joint" cx="278" cy="22" r="7"/>
+              <circle class="pose-joint" cx="180" cy="158" r="7"/>
+              <circle class="pose-joint" cx="135" cy="230" r="7"/>
+              <circle class="pose-joint" cx="225" cy="230" r="7"/>
+            </svg>
+          </div>
+        </div>
+        <div class="data-arrow">映像<br>↓<br>ポーズ確率</div>
+        <div class="result-card">
+          <div class="result-label">現在のポーズ</div>
+          <div class="result-value"><span>jump</span><small>0.91</small></div>
+          <div class="meter" aria-label="信頼度0.91"><span></span></div>
+        </div>
+      </figure>
+    </section>
+
+    <section class="section tint" id="quick-start" aria-labelledby="quick-start-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">クイックスタート</p>
+          <h2 id="quick-start-title">モデルから動きまで、4ステップ</h2>
+        </div>
+        <p>公開済みの Teachable Machine Pose モデル、カメラ、ネットワーク接続が必要です。TMPose をカスタム拡張機能として読み込み、<strong>サンドボックス化せずに拡張機能を実行する</strong>を有効にしてから、次の順番でブロックを置きます。</p>
+      </div>
+
+      <div class="flow" aria-label="4ステップの準備手順">
+        <article class="flow-step">
+          <span class="step-number">1</span>
+          <h3>学習して公開する</h3>
+          <p>Teachable Machine で各ポーズに <code>jump</code> や <code>stand</code> などのわかりやすいクラス名を付けます。モデルをエクスポートし、共有 URL をコピーします。</p>
+        </article>
+        <article class="flow-step">
+          <span class="step-number">2</span>
+          <h3>モデル URL を設定する</h3>
+          <p>モデルフォルダーの URL を貼り付けます。末尾のスラッシュがなくても自動で追加されます。</p>
+        </article>
+        <article class="flow-step">
+          <span class="step-number">3</span>
+          <h3>認識を開始する</h3>
+          <p>カメラの利用を許可します。必要なら TMPose がカメラを起動し、モデルも自動で読み込みます。</p>
+        </article>
+        <article class="flow-step">
+          <span class="step-number">4</span>
+          <h3>結果を使う</h3>
+          <p>最上位のラベルを読む、特定のポーズを判定する、信頼度でプロジェクトを制御する、といった使い方ができます。</p>
+        </article>
+      </div>
+
+      <div class="block-stack" aria-label="TurboWarpスクリプトの例">
+        <div class="block control"><span>緑の旗が押されたとき</span></div>
+        <div class="block"><span>set model URL to</span><span class="block-value">https://teachablemachine.withgoogle.com/models/…/</span></div>
+        <div class="block"><span>start recognition</span></div>
+        <div class="block control"><span>ずっと</span></div>
+        <div class="block sensing"><span>if pose is jump with confidence at least</span><span class="block-value">0.75</span></div>
+      </div>
+
+      <aside class="note">
+        <span class="note-icon" aria-hidden="true">!</span>
+        <p><strong>サンドボックス化せずに読み込んでください。</strong>カメラ利用とステージ内プレビューには、TurboWarp の「サンドボックス化せずに拡張機能を実行する」が必要です。信頼できる拡張機能のコードだけを読み込んでください。</p>
+      </aside>
+    </section>
+
+    <section class="section" id="how-it-works" aria-labelledby="how-it-works-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">動作のしくみ</p>
+          <h2 id="how-it-works-title">1枚の映像から、複数の答えへ</h2>
+        </div>
+        <p>認識中、TMPose はカメラ映像を繰り返し取得し、ブラウザー内でモデルを実行します。そして、モデルに含まれるすべてのクラスについて確率を保存します。</p>
+      </div>
+
+      <figure>
+        <div class="pipeline" role="img" aria-label="カメラ映像が姿勢推定とTeachable Machineモデルを通り、ラベル、スコア、真偽値ブロックになる流れ">
+          <div class="pipeline-node"><span class="pipeline-icon">▣</span><div><strong>カメラ映像</strong><small>現在の1フレーム</small></div></div>
+          <span class="pipeline-arrow" aria-hidden="true">→</span>
+          <div class="pipeline-node"><span class="pipeline-icon">⌁</span><div><strong>姿勢推定</strong><small>体のキーポイント</small></div></div>
+          <span class="pipeline-arrow" aria-hidden="true">→</span>
+          <div class="pipeline-node"><span class="pipeline-icon">%</span><div><strong>クラス確率</strong><small>各クラス 0〜1</small></div></div>
+          <span class="pipeline-arrow" aria-hidden="true">→</span>
+          <div class="pipeline-node"><span class="pipeline-icon">✓</span><div><strong>ブロック</strong><small>ラベル · 値 · 判定</small></div></div>
+        </div>
+        <figcaption class="note">
+          <span class="note-icon" aria-hidden="true">i</span>
+          <p><code>current pose</code> は確率が最も高いクラスです。<code>confidence</code> はそのクラスのスコアを小数第2位に丸めた値です。<code>confidence of [NAME]</code> は指定したクラスの値を返します。</p>
+        </figcaption>
+      </figure>
+
+      <div class="split-grid" style="margin-top: 28px">
+        <article class="detail-card">
+          <h3>プレビューはステージ上に表示</h3>
+          <p>カメラのキャンバスを TurboWarp のステージ上に重ねて表示します。スプライトにはなりません。また、非表示にしてもモデルへの入力は変わりません。</p>
+          <div class="mini-stage" aria-label="ステージの右下にあるプレビュー"><span class="preview-window">カメラ</span></div>
+          <div class="position-list" aria-label="プレビューを置ける位置">
+            <span>左上</span><span>右上</span><span>左下</span><span>右下</span><span>中央</span><span>ステージ全体</span>
+          </div>
+        </article>
+        <article class="detail-card">
+          <h3>開始と停止を使い分ける</h3>
+          <ul class="checklist">
+            <li><code>start camera</code> はカメラを起動してプレビューを表示します。</li>
+            <li><code>start recognition</code> は、必要ならカメラ起動とモデル読込も行います。</li>
+            <li><code>stop recognition</code> は認識結果を消しますが、カメラはそのまま利用できます。</li>
+            <li><code>stop camera</code> は認識を止め、メディアトラックを解放し、プレビューも取り除きます。</li>
+            <li><code>hide camera preview</code> は表示だけを変えます。認識は続けられます。</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section tint" id="scores" aria-labelledby="scores-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">結果の選び方</p>
+          <h2 id="scores-title">すぐ反応するか、時間でなめらかにするか</h2>
+        </div>
+        <p>通常のビルドでは、現在フレームの確率を利用できます。オプションの <code>temporalPoseScoring</code> 機能が有効なビルドでは、より安定した判定に使える蓄積スコアも利用できます。</p>
+      </div>
+
+      <div class="score-grid">
+        <article class="score-card current">
+          <span class="tag">標準</span>
+          <h3>現在の信頼度</h3>
+          <p>素早いジェスチャー向けです。フレームごとに答えが変わるため反応は速い一方、判定の境界付近では値が揺れることがあります。</p>
+          <svg class="score-chart" viewBox="0 0 420 190" role="img" aria-label="現在の信頼度がしきい値の上下で素早く変化するグラフ">
+            <line class="chart-grid" x1="30" y1="30" x2="30" y2="160"/>
+            <line class="chart-grid" x1="30" y1="160" x2="400" y2="160"/>
+            <line class="chart-threshold" x1="30" y1="82" x2="400" y2="82"/>
+            <polyline class="chart-current" points="30,143 68,128 106,66 144,94 182,51 220,90 258,55 296,62 334,47 372,57 400,42"/>
+          </svg>
+          <div class="legend"><span style="--legend-color: var(--coral)">フレームごとの信頼度</span><span style="--legend-color: var(--gold)">しきい値</span></div>
+          <p style="margin-top: 18px"><code>pose is [NAME] with confidence at least [THRESHOLD]?</code> を使います。しきい値は 0〜1 の範囲に収まり、<code>0.75</code> が試しやすい初期値です。</p>
+        </article>
+
+        <article class="score-card accumulated">
+          <span class="tag">オプション機能</span>
+          <h3>蓄積スコア</h3>
+          <p>一定時間続けるポーズ向けです。経過時間に応じて根拠を加え、古い根拠を減衰させるため、1フレームだけの変化を抑えられます。</p>
+          <svg class="score-chart" viewBox="0 0 420 190" role="img" aria-label="蓄積スコアがなめらかにしきい値を超え、その後減衰するグラフ">
+            <line class="chart-grid" x1="30" y1="30" x2="30" y2="160"/>
+            <line class="chart-grid" x1="30" y1="160" x2="400" y2="160"/>
+            <line class="chart-threshold" x1="30" y1="82" x2="400" y2="82"/>
+            <path class="chart-accumulated" d="M30 150 C80 146 108 134 145 112 S210 70 252 55 S325 50 400 105"/>
+          </svg>
+          <div class="legend"><span style="--legend-color: var(--teal)">蓄積スコア</span><span style="--legend-color: var(--gold)">しきい値</span></div>
+          <div class="formula" aria-label="蓄積スコアの計算式">前回値 × 減衰係数<sup>秒</sup> + 確率 × 蓄積係数 × 秒</div>
+          <p style="margin-top: 18px">最も高い正のスコアがしきい値に届くまで、ポーズ名は空文字です。非表示タブでの経過時間は計算に含まれません。認識を停止するかリセットすると、蓄積値はすべて消去されます。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="block-guide" aria-labelledby="block-guide-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">ブロックガイド</p>
+          <h2 id="block-guide-title">目的に合うブロックを選ぶ</h2>
+        </div>
+        <p>最初の有効な認識結果が出る前と、認識を停止した後のレポーターブロックは、空文字または 0 を返します。起動処理の調整には状態確認の真偽値ブロックが便利です。</p>
+      </div>
+
+      <div class="card-grid">
+        <article class="reference-card">
+          <h3>モデルの準備</h3>
+          <p>Teachable Machine モデルを設定して、準備状態を確認します。</p>
+          <ul>
+            <li><code>set model URL to [URL]</code> はモデルを切り替え、以前読み込んだモデルを解除します。</li>
+            <li><code>load model</code> は <code>model.json</code> と <code>metadata.json</code> を取得します。</li>
+            <li><code>model is loaded?</code> は準備できているかを返します。</li>
+            <li><code>TMPose version</code> は拡張機能のビルド情報を返します。</li>
+          </ul>
+        </article>
+        <article class="reference-card">
+          <h3>カメラとプレビュー</h3>
+          <p>映像の取得と認識を分けて制御できます。</p>
+          <ul>
+            <li><code>start camera</code> · <code>stop camera</code> · <code>camera is running?</code></li>
+            <li><code>show camera preview</code> · <code>hide camera preview</code></li>
+            <li><code>camera preview is visible?</code></li>
+            <li><code>set camera preview opacity to [OPACITY]</code> は透明度を 0〜1 に収めます。</li>
+            <li><code>set camera preview position to [POSITION]</code></li>
+          </ul>
+        </article>
+        <article class="reference-card">
+          <h3>認識と結果</h3>
+          <p>認識ループを開始し、スコアを読んで条件を判定します。</p>
+          <ul>
+            <li><code>start recognition</code> · <code>stop recognition</code> · <code>recognition is running?</code></li>
+            <li><code>current pose</code> · <code>confidence</code> · <code>confidence of [NAME]</code></li>
+            <li><code>pose is [NAME]?</code> のしきい値は 0.75 固定です。</li>
+            <li><code>pose is [NAME] with confidence at least [THRESHOLD]?</code></li>
+          </ul>
+        </article>
+        <article class="reference-card">
+          <h3>時間計測とエラー</h3>
+          <p>起動時間を測り、失敗の理由を表示できます。</p>
+          <ul>
+            <li><code>camera startup time (ms)</code></li>
+            <li><code>model load time (ms)</code></li>
+            <li><code>first recognition time (ms)</code></li>
+            <li><code>last error</code> は最後に発生した実行時エラーのメッセージを保持します。</li>
+          </ul>
+        </article>
+        <article class="reference-card wide">
+          <h3>オプションの蓄積ポーズブロック</h3>
+          <p>次のブロックは、拡張機能のビルドで <code>temporalPoseScoring</code> が有効な場合だけ表示されます：<code>set accumulated pose accumulation [ACCUMULATION] decay [DECAY]</code>、<code>set accumulated pose threshold [THRESHOLD]</code>、<code>reset accumulated pose scores</code>、<code>accumulated pose</code>、<code>accumulated score</code>、<code>accumulated score of [NAME]</code>。減衰係数は1秒後に残る割合（0〜1）で、認識中に変更した減衰係数は次回の認識開始時から有効になります。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section tint" id="troubleshooting" aria-labelledby="troubleshooting-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">トラブルシューティング</p>
+          <h2 id="troubleshooting-title">期待した結果にならないとき</h2>
+        </div>
+        <p>まず <code>last error</code> を確認してください。設定時の失敗は、権限、間違ったモデル URL、ネットワーク制限、サンドボックス内での読み込みが主な原因です。</p>
+      </div>
+
+      <div class="troubleshooting">
+        <details open>
+          <summary>カメラが起動しない</summary>
+          <p>TurboWarp ページにカメラの利用を許可し、ほかのアプリがカメラを占有していないことを確認します。ページは安全なコンテキスト（HTTPS または localhost）で実行する必要があります。その後、もう一度 <code>start camera</code> を実行してください。</p>
+        </details>
+        <details>
+          <summary>モデルを読み込めない</summary>
+          <p>Teachable Machine の編集画面や個別の JSON ファイルではなく、公開したモデルフォルダーの URL を使います。TMPose はその URL に <code>model.json</code> と <code>metadata.json</code> を追加します。jsDelivr と Teachable Machine のモデル配信先への通信が許可されていることも確認してください。</p>
+        </details>
+        <details>
+          <summary>ポーズ名が安定しない</summary>
+          <p>学習例の種類を増やす、全身をカメラ内に入れる、明るさを改善する、0.75 などのしきい値を試す、といった調整が有効です。蓄積ポーズブロックが表示されるビルドなら、少しの間維持するポーズに利用できます。</p>
+        </details>
+        <details>
+          <summary>認識は動くがプレビューが表示されない</summary>
+          <p><code>show camera preview</code> を実行し、透明度を 0 より大きくして、対応する表示位置を選びます。ステージの DOM を変更したパッケージ版では、プレビューを取り付けられない場合があります。ステージ検出の失敗理由は <code>last error</code> で確認できます。</p>
+        </details>
+      </div>
+
+      <aside class="note">
+        <span class="note-icon" aria-hidden="true">🔒</span>
+        <p><strong>カメラとプライバシー：</strong>TMPose はブラウザー内で姿勢推定と分類を行い、カメラ映像をアップロードしません。一方で、TensorFlow.js、Teachable Machine Pose ライブラリ、公開済みモデルはネットワークから取得します。プロジェクトで不要になったらカメラを停止してください。</p>
+      </aside>
+    </section>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <p><strong>TMPose</strong> · TurboWarp + Teachable Machine Pose</p>
+      <p><a href="https://github.com/kubohiroya/turbowarp-tmpose/issues">問題を報告</a> · <a href="../" lang="en" hreflang="en">English version</a></p>
+    </div>
+  </footer>
+</body>
+</html>

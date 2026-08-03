@@ -3,6 +3,7 @@ import {FEATURE_FLAGS, type FeatureFlags} from './config/feature-flags.js';
 
 export const EXTENSION_ID = 'tmpose';
 export const VERSION = '1.3.0-typescript';
+export const DOCS_URI = 'https://kubohiroya.github.io/turbowarp-tmpose/';
 export const ACCUMULATED_POSE_CHANGED_EVENT = 'TMPOSE_ACCUMULATED_POSE_CHANGED';
 
 export interface AccumulatedPoseChangedEventV1 {
@@ -146,6 +147,7 @@ export class TMPoseExtension {
     return {
       id: EXTENSION_ID,
       name: Scratch.translate(definitions.extensionName),
+      docsURI: DOCS_URI,
       blocks: definitions.blocks
         .filter((block: any) => !block.featureFlag || this.featureFlags[block.featureFlag])
         .map((block: any) => ({
