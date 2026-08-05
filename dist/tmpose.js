@@ -18,7 +18,7 @@
     accumulatedPoseEvents: false
   };
   const EXTENSION_ID = "tmpose";
-  const VERSION = "1.4.0-typescript";
+  const VERSION = "1.5.0-typescript";
   const DOCS_URI = "https://kubohiroya.github.io/turbowarp-tmpose/";
   const ACCUMULATED_POSE_CHANGED_EVENT = "TMPOSE_ACCUMULATED_POSE_CHANGED";
   const TFJS_URL = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js";
@@ -103,8 +103,10 @@
     return typeof document !== "undefined" && document.visibilityState === "hidden";
   }
   class TMPoseExtension {
-    constructor(featureFlags = {}) {
+    constructor(featureFlags = {}, dependencies = {}) {
       this.featureFlags = { ...FEATURE_FLAGS, ...featureFlags };
+      this.tmPoseRuntime = dependencies.runtime ?? null;
+      this.allowRemoteLibraries = dependencies.allowRemoteLibraries ?? true;
       this.modelURL = "";
       this.model = null;
       this.webcam = null;
@@ -181,11 +183,16 @@
       this.firstPredictMs = 0;
     }
     async ensureLibrariesLoaded() {
+      if (this.tmPoseRuntime) return;
+      if (!this.allowRemoteLibraries) {
+        throw new Error("TMPose: A preloaded Teachable Machine Pose runtime is required.");
+      }
       if (typeof globalThis.tf === "undefined") await loadScript(TFJS_URL);
       if (typeof globalThis.tmPose === "undefined") await loadScript(TMPOSE_URL);
       if (typeof globalThis.tmPose === "undefined") {
         throw new Error("TMPose: Teachable Machine Pose could not be loaded.");
       }
+      this.tmPoseRuntime = globalThis.tmPose;
     }
     cleanupCameraResources() {
       const video = this.webcam?.webcam;
@@ -210,7 +217,7 @@
         this.lastError = "";
         const startedAt = performance.now();
         await this.ensureLibrariesLoaded();
-        this.webcam = new globalThis.tmPose.Webcam(320, 240, true);
+        this.webcam = new this.tmPoseRuntime.Webcam(320, 240, true);
         await this.webcam.setup();
         await this.webcam.play();
         this.attachPreviewToStage();
@@ -271,13 +278,19 @@
       }
     }
     async loadModel() {
-      if (!this.modelURL) throw new Error("TMPose: Set the model URL first.");
       if (this.model) return;
+      if (!this.modelURL) throw new Error("TMPose: Set the model URL first.");
       try {
         this.lastError = "";
         const startedAt = performance.now();
         await this.ensureLibrariesLoaded();
-        this.model = await globalThis.tmPose.load(this.modelURL + "model.json", this.modelURL + "metadata.json");
+        if (typeof this.tmPoseRuntime.load !== "function") {
+          throw new Error("TMPose: The Teachable Machine Pose URL loader is not available.");
+        }
+        this.model = await this.tmPoseRuntime.load(
+          this.modelURL + "model.json",
+          this.modelURL + "metadata.json"
+        );
         this.modelLoadMs = Math.round(performance.now() - startedAt);
       } catch (error) {
         this.setLastError(error);
@@ -286,6 +299,26 @@
     }
     isModelLoaded() {
       return Boolean(this.model);
+    }
+    usePreparedModel(model) {
+      if (!model || typeof model !== "object") {
+        throw new TypeError("TMPose: Prepared model must be an object.");
+      }
+      if (this.predicting && this.model !== model) {
+        throw new Error("TMPose: Stop recognition before changing the active model.");
+      }
+      this.model = model;
+      this.modelURL = "";
+      this.modelLoadMs = 0;
+      this.firstPredictMs = 0;
+    }
+    clearPreparedModel(model) {
+      if (model !== void 0 && this.model !== model) return;
+      this.stopPredict();
+      this.model = null;
+      this.modelURL = "";
+      this.modelLoadMs = 0;
+      this.firstPredictMs = 0;
     }
     async startPredict() {
       try {

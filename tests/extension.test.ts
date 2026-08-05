@@ -74,7 +74,7 @@ describe('TMPoseExtension', () => {
     expect(info.docsURI).toBe(DOCS_URI);
     expect(info.docsURI).toBe('https://kubohiroya.github.io/turbowarp-tmpose/');
     expect(new TMPoseExtension().versionReporter()).toBe(VERSION);
-    expect(VERSION).toBe('1.4.0-typescript');
+    expect(VERSION).toBe('1.5.0-typescript');
     expect(info.blocks).toHaveLength(24);
   });
 

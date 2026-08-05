@@ -49,14 +49,40 @@ with **Run extension without sandbox** enabled.
 The browser-ready, version-pinned build is also available from jsDelivr:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.4.0/dist/tmpose.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.5.0/dist/tmpose.js
 ```
 
 To add the published package to another project:
 
 ```sh
-pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.4.0
+pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.5.0
 ```
+
+### Composition API
+
+Composite runtimes can import `@kubohiroya/turbowarp-tmpose/composition` without registering the
+Standalone extension or adding blocks. The caller supplies an already-bundled Teachable Machine
+Pose runtime and validated model bytes, so this path does not download runtime scripts or model
+files.
+
+```js
+import {createTMPoseComposition} from '@kubohiroya/turbowarp-tmpose/composition';
+
+const pose = createTMPoseComposition({runtime: bundledTMPoseRuntime});
+await pose.registerPoseModel({
+  name: 'RescuePose',
+  files: [
+    {path: 'model.json', bytes: modelBytes},
+    {path: 'weights.bin', bytes: weightsBytes},
+    {path: 'metadata.json', bytes: metadataBytes},
+  ],
+});
+pose.activatePoseModel('RescuePose');
+await pose.startRecognition();
+```
+
+Each composition owns its model registry, active model, camera, and recognition state. Release one
+model with `releasePoseModel(name)` or release the complete instance with `releaseAll()`.
 
 ## Quick start
 

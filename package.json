@@ -1,6 +1,6 @@
 {
   "name": "@kubohiroya/turbowarp-tmpose",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "A TurboWarp extension for camera-based pose recognition using Teachable Machine Pose models.",
   "author": "Hiroya Kubo <hiroya@cuc.ac.jp>",
   "license": "MPL-2.0",
@@ -11,6 +11,14 @@
   },
   "bugs": {
     "url": "https://github.com/kubohiroya/turbowarp-tmpose/issues"
+  },
+  "exports": {
+    "./composition": {
+      "types": "./dist/types/composition.d.ts",
+      "import": "./dist/composition.js"
+    },
+    "./dist/tmpose.js": "./dist/tmpose.js",
+    "./package.json": "./package.json"
   },
   "type": "module",
   "files": [
@@ -28,16 +36,21 @@
   "scripts": {
     "dev": "vite build --watch",
     "typecheck": "tsc --noEmit",
-    "build": "vite build",
+    "build": "pnpm build:extension && pnpm build:composition && pnpm build:types",
+    "build:extension": "vite build",
+    "build:composition": "vite build --config vite.composition.config.ts",
+    "build:types": "tsc --project tsconfig.build.json",
+    "types:composition:check": "tsc --project tsconfig.composition-consumer.json",
     "test": "vitest run",
     "docs": "node scripts/generate-readme.mjs",
     "docs:check": "npm run docs && git diff --exit-code -- README.md",
     "docs:pages:check": "node scripts/check-pages.mjs",
     "check:dist": "npm run build && git diff --exit-code -- dist",
+    "archive:check": "node scripts/check-github-archive.mjs",
     "pack:check": "npm pack --dry-run --ignore-scripts",
     "release:check": "npm publish --dry-run --access public",
-    "check": "npm run typecheck && npm run test && npm run build && npm run docs:check && npm run docs:pages:check && npm run check:dist && npm run pack:check",
-    "prepack": "npm run check"
+    "check": "npm run typecheck && npm run test && npm run build && npm run types:composition:check && npm run docs:check && npm run docs:pages:check && npm run check:dist && npm run archive:check && npm run pack:check",
+    "prepack": "npm run build"
   },
   "devDependencies": {
     "@kubohiroya/vite-plugin-turbowarp-extension": "0.1.0",
