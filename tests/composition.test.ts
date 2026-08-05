@@ -76,6 +76,7 @@ beforeEach(() => {
     visibilityState: 'visible',
     head: {appendChild: appendScript},
     addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
     querySelector: vi.fn(() => null),
     querySelectorAll: vi.fn(() => [])
   });
@@ -274,5 +275,198 @@ describe('TMPose composition API', () => {
     expect(stopTrack).toHaveBeenCalledOnce();
     expect(activeModel.dispose).toHaveBeenCalledOnce();
     expect(otherModel.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('configures and publishes accumulated pose changes without score-only duplicates', async () => {
+    const stage = element();
+    const canvas = element('CANVAS');
+    const webcam = {
+      canvas,
+      webcam: {srcObject: {getTracks: () => []}},
+      setup: vi.fn(async () => undefined),
+      play: vi.fn(async () => undefined),
+      update: vi.fn()
+    };
+    vi.mocked(document.querySelector).mockReturnValue(stage);
+    const predictions = [
+      [
+        {className: 'stand', probability: 0},
+        {className: 'jump', probability: 1}
+      ],
+      [
+        {className: 'stand', probability: 0},
+        {className: 'jump', probability: 1}
+      ],
+      [
+        {className: 'stand', probability: 1},
+        {className: 'jump', probability: 0}
+      ]
+    ];
+    const loaded = model();
+    loaded.predict.mockImplementation(async () => predictions.shift() ?? []);
+    function Webcam() {
+      return webcam;
+    }
+    let now = 0;
+    vi.stubGlobal('performance', {now: () => now});
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: Webcam as never, loadFromFiles: vi.fn(async () => loaded)},
+      createFile
+    });
+    composition.configureAccumulatedPose({
+      accumulationPerSecond: 1,
+      decayPerSecond: 0,
+      scoreThreshold: 1
+    });
+    const events: Array<Record<string, unknown>> = [];
+    const unsubscribe = composition.subscribeAccumulatedPose((event) => events.push(event));
+    await composition.registerPoseModel({name: 'Active', files: files(1)});
+    composition.activatePoseModel('Active');
+    await composition.startRecognition();
+
+    for (const timestamp of [1000, 2000, 3000]) {
+      now = timestamp;
+      animationCallbacks.shift()!();
+      await vi.waitFor(() => expect(loaded.predict).toHaveBeenCalledTimes(timestamp / 1000));
+    }
+
+    expect(events.map(({poseName}) => poseName)).toEqual(['jump', 'stand']);
+    expect(events.every((event) => Object.isFrozen(event))).toBe(true);
+    expect(composition.accumulatedPose()).toBe('stand');
+    expect(composition.accumulatedScore()).toBe(1);
+    expect(composition.accumulatedScoreOf('stand')).toBe(1);
+    composition.resetAccumulatedPose();
+    expect(events.map(({poseName}) => poseName)).toEqual(['jump', 'stand', '']);
+    unsubscribe();
+    unsubscribe();
+    await composition.releaseAll();
+    expect(document.removeEventListener).toHaveBeenCalledWith(
+      'visibilitychange',
+      expect.any(Function)
+    );
+  });
+
+  it('validates accumulated pose contracts and releases subscribers as a final operation', async () => {
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: class {}, loadFromFiles: vi.fn()},
+      createFile
+    });
+    const invalid = [
+      {},
+      {accumulationPerSecond: -1, decayPerSecond: 0.9, scoreThreshold: 0},
+      {accumulationPerSecond: 1, decayPerSecond: 2, scoreThreshold: 0},
+      {accumulationPerSecond: 1, decayPerSecond: 0.9, scoreThreshold: Number.NaN},
+      {accumulationPerSecond: 1, decayPerSecond: 0.9, scoreThreshold: 0, extra: true}
+    ];
+    for (const value of invalid) {
+      expect(() => composition.configureAccumulatedPose(value as never)).toThrow();
+    }
+    expect(() => composition.subscribeAccumulatedPose(null as never)).toThrow(/listener/u);
+    const listener = vi.fn();
+    composition.subscribeAccumulatedPose(listener);
+
+    await composition.releaseAll();
+    await composition.releaseAll();
+    expect(() =>
+      composition.configureAccumulatedPose({
+        accumulationPerSecond: 1,
+        decayPerSecond: 0.9,
+        scoreThreshold: 0
+      })
+    ).toThrow(/released/u);
+    expect(() => composition.resetAccumulatedPose()).toThrow(/released/u);
+    expect(() => composition.subscribeAccumulatedPose(listener)).toThrow(/released/u);
+    await expect(composition.registerPoseModel({name: 'Later', files: files()})).rejects.toThrow(
+      /released/u
+    );
+    expect(composition.accumulatedPose()).toBe('');
+    expect(composition.isRecognizing()).toBe(false);
+  });
+
+  it('isolates accumulated scores and listeners between composition instances', async () => {
+    const stage = element();
+    vi.mocked(document.querySelector).mockReturnValue(stage);
+    const firstModel = model();
+    const secondModel = model();
+    firstModel.predict.mockResolvedValue([
+      {className: 'jump', probability: 1},
+      {className: 'stand', probability: 0}
+    ]);
+    secondModel.predict.mockResolvedValue([
+      {className: 'jump', probability: 0},
+      {className: 'stand', probability: 1}
+    ]);
+    const webcams = [firstModel, secondModel].map(() => ({
+      canvas: element('CANVAS'),
+      webcam: {srcObject: {getTracks: () => []}},
+      setup: vi.fn(async () => undefined),
+      play: vi.fn(async () => undefined),
+      update: vi.fn()
+    }));
+    let webcamIndex = 0;
+    function Webcam() {
+      return webcams[webcamIndex++]!;
+    }
+    let now = 0;
+    vi.stubGlobal('performance', {now: () => now});
+    const first = createTMPoseComposition({
+      runtime: {Webcam: Webcam as never, loadFromFiles: vi.fn(async () => firstModel)},
+      createFile
+    });
+    const second = createTMPoseComposition({
+      runtime: {Webcam: Webcam as never, loadFromFiles: vi.fn(async () => secondModel)},
+      createFile
+    });
+    for (const composition of [first, second]) {
+      composition.configureAccumulatedPose({
+        accumulationPerSecond: 1,
+        decayPerSecond: 1,
+        scoreThreshold: 1
+      });
+      await composition.registerPoseModel({name: 'Shared', files: files()});
+      composition.activatePoseModel('Shared');
+    }
+    const firstListener = vi.fn();
+    const secondListener = vi.fn();
+    first.subscribeAccumulatedPose(firstListener);
+    second.subscribeAccumulatedPose(secondListener);
+    await first.startRecognition();
+    await second.startRecognition();
+
+    now = 1000;
+    for (const callback of animationCallbacks.splice(0)) callback();
+    await vi.waitFor(() => {
+      expect(firstModel.predict).toHaveBeenCalledOnce();
+      expect(secondModel.predict).toHaveBeenCalledOnce();
+    });
+
+    expect(first.accumulatedPose()).toBe('jump');
+    expect(second.accumulatedPose()).toBe('stand');
+    expect(firstListener).toHaveBeenCalledOnce();
+    expect(secondListener).toHaveBeenCalledOnce();
+    first.resetAccumulatedPose();
+    expect(first.accumulatedPose()).toBe('');
+    expect(second.accumulatedPose()).toBe('stand');
+    expect(firstListener).toHaveBeenCalledTimes(2);
+    expect(secondListener).toHaveBeenCalledOnce();
+
+    await first.releaseAll();
+    await second.releaseAll();
+  });
+
+  it('constructs and configures the composition without global Scratch', async () => {
+    vi.unstubAllGlobals();
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: class {}, loadFromFiles: vi.fn()},
+      createFile
+    });
+    composition.configureAccumulatedPose({
+      accumulationPerSecond: 1,
+      decayPerSecond: 0.9,
+      scoreThreshold: 0
+    });
+    const unsubscribe = composition.subscribeAccumulatedPose(() => undefined);
+    unsubscribe();
+    await composition.releaseAll();
   });
 });

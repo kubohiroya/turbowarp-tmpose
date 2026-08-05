@@ -11,6 +11,7 @@ export interface TMPoseRuntime {
 export interface TMPoseExtensionDependencies {
     runtime?: TMPoseRuntime;
     allowRemoteLibraries?: boolean;
+    onAccumulatedPoseChanged?: (event: AccumulatedPoseChangedEventV1) => void;
 }
 export interface AccumulatedPoseChangedEventV1 {
     version: 1;
@@ -86,6 +87,7 @@ export declare class TMPoseExtension {
     startAccumulatedPoseSession(now?: number): void;
     supportsAccumulatedPoseEvents(): any;
     emitAccumulatedPoseChanged(previousPoseName: string, reason: AccumulatedPoseChangedEventV1['reason']): void;
+    dispose(): void;
     resetAccumulatedPose(reason?: AccumulatedPoseChangedEventV1['reason']): void;
     handleDocumentVisibilityChange(): void;
     updateAccumulatedPose(prediction: any, now?: number): void;

@@ -1,3 +1,5 @@
+import { type AccumulatedPoseChangedEventV1 } from './extension.js';
+export type { AccumulatedPoseChangedEventV1 } from './extension.js';
 export interface TMPoseCompositionRuntime {
     Webcam: new (width: number, height: number, flipHorizontal: boolean) => unknown;
     loadFromFiles(model: File, weights: File, metadata: File): Promise<unknown>;
@@ -14,6 +16,12 @@ export interface PoseModelRegistration {
     readonly name: string;
     readonly labels: ReadonlyArray<string>;
 }
+export interface AccumulatedPoseConfiguration {
+    accumulationPerSecond: number;
+    decayPerSecond: number;
+    scoreThreshold: number;
+}
+export type AccumulatedPoseListener = (event: Readonly<AccumulatedPoseChangedEventV1>) => void;
 export interface TMPoseComposition {
     registerPoseModel(input: PoseModelRegistrationInput): Promise<PoseModelRegistration>;
     activatePoseModel(name: unknown): void;
@@ -30,6 +38,12 @@ export interface TMPoseComposition {
     currentPose(): string;
     confidence(): number;
     confidenceOf(name: unknown): number;
+    configureAccumulatedPose(input: AccumulatedPoseConfiguration): void;
+    resetAccumulatedPose(): void;
+    accumulatedPose(): string;
+    accumulatedScore(): number;
+    accumulatedScoreOf(name: unknown): number;
+    subscribeAccumulatedPose(listener: AccumulatedPoseListener): () => void;
 }
 export interface TMPoseCompositionOptions {
     runtime: TMPoseCompositionRuntime;

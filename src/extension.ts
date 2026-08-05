@@ -15,6 +15,7 @@ export interface TMPoseRuntime {
 export interface TMPoseExtensionDependencies {
   runtime?: TMPoseRuntime;
   allowRemoteLibraries?: boolean;
+  onAccumulatedPoseChanged?: (event: AccumulatedPoseChangedEventV1) => void;
 }
 
 export interface AccumulatedPoseChangedEventV1 {
@@ -125,6 +126,7 @@ export class TMPoseExtension {
     this.featureFlags = {...FEATURE_FLAGS, ...featureFlags};
     this.tmPoseRuntime = dependencies.runtime ?? null;
     this.allowRemoteLibraries = dependencies.allowRemoteLibraries ?? true;
+    this.onAccumulatedPoseChanged = dependencies.onAccumulatedPoseChanged ?? null;
     this.modelURL = '';
     this.model = null;
     this.webcam = null;
@@ -571,7 +573,23 @@ export class TMPoseExtension {
       reason,
       timestamp: performance.now()
     };
-    Scratch.vm?.runtime?.emit(ACCUMULATED_POSE_CHANGED_EVENT, payload);
+    if (this.onAccumulatedPoseChanged) {
+      try {
+        this.onAccumulatedPoseChanged(payload);
+      } catch {
+        // Observers cannot change recognition semantics.
+      }
+    } else if (typeof Scratch !== 'undefined') {
+      Scratch.vm?.runtime?.emit(ACCUMULATED_POSE_CHANGED_EVENT, payload);
+    }
+  }
+
+  dispose() {
+    this.stopCamera();
+    if (this.featureFlags.temporalPoseScoring && typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.visibilityChangeListener);
+    }
+    this.onAccumulatedPoseChanged = null;
   }
 
   resetAccumulatedPose(reason: AccumulatedPoseChangedEventV1['reason'] = 'reset') {
