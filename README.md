@@ -78,11 +78,40 @@ await pose.registerPoseModel({
   ],
 });
 pose.activatePoseModel('RescuePose');
+pose.configureAccumulatedPose({
+  accumulationPerSecond: 1,
+  decayPerSecond: 0.9,
+  scoreThreshold: 0,
+});
+const unsubscribe = pose.subscribeAccumulatedPose((event) => {
+  // event.poseName is the one currently selected candidate, or an empty string.
+});
 await pose.startRecognition();
 ```
 
 Each composition owns its model registry, active model, camera, and recognition state. Release one
-model with `releasePoseModel(name)` or release the complete instance with `releaseAll()`.
+model with `releasePoseModel(name)` or release the complete instance with `releaseAll()`. Calling
+`releaseAll()` also removes accumulated-pose listeners. `subscribeAccumulatedPose()` returns an
+idempotent unsubscribe function.
+
+The accumulated-pose API chooses one candidate for an async-input consumer. It is deliberately
+separate from an Actor action that waits for multiple pose steps in sequence: a sequence consumer
+should read `confidenceOf(name)` and own its per-step progress instead of using or resetting this
+candidate-selection state.
+
+Accumulated scores use elapsed wall-clock seconds, not prediction counts:
+
+```text
+nextScore = previousScore * decayPerSecond^elapsedSeconds
+          + confidence * accumulationPerSecond * elapsedSeconds
+```
+
+`accumulationPerSecond` is a finite number greater than or equal to zero. `decayPerSecond` is the
+finite fraction retained per second from zero through one; a changed decay takes effect in the next
+recognition session. `scoreThreshold` is a finite number greater than or equal to zero. An event is
+published only when the selected pose name changes, including one transition to an empty name on
+reset or stop; score-only changes do not publish another event. The Standalone extension keeps its
+temporal-scoring and event feature flags off by default.
 
 ## Quick start
 

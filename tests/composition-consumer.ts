@@ -1,5 +1,6 @@
 import {
   createTMPoseComposition,
+  type AccumulatedPoseChangedEventV1,
   type PoseModelRegistration,
   type TMPoseComposition,
   type TMPoseCompositionRuntime
@@ -16,5 +17,16 @@ const registration: Promise<PoseModelRegistration> = composition.registerPoseMod
     {path: 'metadata.json', bytes: new Uint8Array([3])}
   ]
 });
+composition.configureAccumulatedPose({
+  accumulationPerSecond: 1,
+  decayPerSecond: 0.9,
+  scoreThreshold: 0
+});
+const unsubscribe: () => void = composition.subscribeAccumulatedPose(
+  (event: Readonly<AccumulatedPoseChangedEventV1>) => {
+    void event.poseName;
+  }
+);
+unsubscribe();
 
 void registration;

@@ -1,4 +1,6 @@
-import {TMPoseExtension} from './extension.js';
+import {TMPoseExtension, type AccumulatedPoseChangedEventV1} from './extension.js';
+
+export type {AccumulatedPoseChangedEventV1} from './extension.js';
 
 export interface TMPoseCompositionRuntime {
   Webcam: new (width: number, height: number, flipHorizontal: boolean) => unknown;
@@ -20,6 +22,14 @@ export interface PoseModelRegistration {
   readonly labels: ReadonlyArray<string>;
 }
 
+export interface AccumulatedPoseConfiguration {
+  accumulationPerSecond: number;
+  decayPerSecond: number;
+  scoreThreshold: number;
+}
+
+export type AccumulatedPoseListener = (event: Readonly<AccumulatedPoseChangedEventV1>) => void;
+
 export interface TMPoseComposition {
   registerPoseModel(input: PoseModelRegistrationInput): Promise<PoseModelRegistration>;
   activatePoseModel(name: unknown): void;
@@ -36,6 +46,12 @@ export interface TMPoseComposition {
   currentPose(): string;
   confidence(): number;
   confidenceOf(name: unknown): number;
+  configureAccumulatedPose(input: AccumulatedPoseConfiguration): void;
+  resetAccumulatedPose(): void;
+  accumulatedPose(): string;
+  accumulatedScore(): number;
+  accumulatedScoreOf(name: unknown): number;
+  subscribeAccumulatedPose(listener: AccumulatedPoseListener): () => void;
 }
 
 export interface TMPoseCompositionOptions {
@@ -119,6 +135,42 @@ function validateRuntime(value: unknown): TMPoseCompositionRuntime {
   return value as unknown as TMPoseCompositionRuntime;
 }
 
+function validateAccumulatedPoseConfiguration(value: unknown): AccumulatedPoseConfiguration {
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== 3 ||
+    !Object.hasOwn(value, 'accumulationPerSecond') ||
+    !Object.hasOwn(value, 'decayPerSecond') ||
+    !Object.hasOwn(value, 'scoreThreshold')
+  ) {
+    throw compositionError(
+      'TMPOSE-COMPOSITION-008',
+      'Accumulated pose configuration must provide accumulationPerSecond, decayPerSecond, and scoreThreshold.'
+    );
+  }
+  const accumulationPerSecond = value.accumulationPerSecond;
+  const decayPerSecond = value.decayPerSecond;
+  const scoreThreshold = value.scoreThreshold;
+  if (
+    typeof accumulationPerSecond !== 'number' ||
+    !Number.isFinite(accumulationPerSecond) ||
+    accumulationPerSecond < 0 ||
+    typeof decayPerSecond !== 'number' ||
+    !Number.isFinite(decayPerSecond) ||
+    decayPerSecond < 0 ||
+    decayPerSecond > 1 ||
+    typeof scoreThreshold !== 'number' ||
+    !Number.isFinite(scoreThreshold) ||
+    scoreThreshold < 0
+  ) {
+    throw compositionError(
+      'TMPOSE-COMPOSITION-008',
+      'Accumulated pose configuration values are out of range.'
+    );
+  }
+  return {accumulationPerSecond, decayPerSecond, scoreThreshold};
+}
+
 function validateFiles(
   input: PoseModelRegistrationInput,
   createFile: NonNullable<TMPoseCompositionOptions['createFile']>
@@ -169,11 +221,36 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
   const runtime = validateRuntime(options.runtime);
   const createFile = options.createFile ?? defaultCreateFile;
   if (typeof createFile !== 'function') throw new TypeError('createFile must be a function.');
-  const extension = new TMPoseExtension({}, {runtime, allowRemoteLibraries: false});
+  const accumulatedPoseListeners = new Set<AccumulatedPoseListener>();
+  const extension = new TMPoseExtension(
+    {temporalPoseScoring: true, accumulatedPoseEvents: true},
+    {
+      runtime,
+      allowRemoteLibraries: false,
+      onAccumulatedPoseChanged(event) {
+        const immutableEvent = Object.freeze({...event});
+        for (const listener of [...accumulatedPoseListeners]) {
+          try {
+            listener(immutableEvent);
+          } catch {
+            // Observers cannot change recognition semantics.
+          }
+        }
+      }
+    }
+  );
   const models = new Map<string, ModelEntry>();
   const versions = new Map<string, number>();
   const disposedModels = new WeakSet<object>();
   let activeName: string | null = null;
+  let released = false;
+  let releasePromise: Promise<void> | null = null;
+
+  function ensureActive(): void {
+    if (released) {
+      throw compositionError('TMPOSE-COMPOSITION-007', 'TMPose composition has been released.');
+    }
+  }
 
   function nextVersion(name: string): number {
     const version = (versions.get(name) ?? 0) + 1;
@@ -205,6 +282,7 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
 
   const composition: TMPoseComposition = {
     async registerPoseModel(input) {
+      ensureActive();
       if (!isRecord(input)) {
         throw compositionError('TMPOSE-COMPOSITION-001', 'Pose model input must be an object.');
       }
@@ -241,6 +319,7 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
     },
 
     activatePoseModel(name) {
+      ensureActive();
       const normalizedName = requireName(name);
       const entry = models.get(normalizedName);
       if (!entry) {
@@ -260,6 +339,7 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
     },
 
     async releasePoseModel(name) {
+      ensureActive();
       const normalizedName = requireName(name);
       nextVersion(normalizedName);
       const entry = models.get(normalizedName);
@@ -277,31 +357,42 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
     },
 
     async releaseAll() {
-      for (const name of versions.keys()) nextVersion(name);
-      const entries = [...models.values()].reverse();
-      const activeEntry = activeName ? models.get(activeName) : null;
-      models.clear();
-      const errors: unknown[] = [];
-      if (activeEntry) {
-        errors.push(...stopActiveModel(activeEntry.model));
-      } else {
+      if (releasePromise) return releasePromise;
+      released = true;
+      accumulatedPoseListeners.clear();
+      releasePromise = (async () => {
+        for (const name of versions.keys()) nextVersion(name);
+        const entries = [...models.values()].reverse();
+        const activeEntry = activeName ? models.get(activeName) : null;
+        models.clear();
+        const errors: unknown[] = [];
+        if (activeEntry) {
+          errors.push(...stopActiveModel(activeEntry.model));
+        } else {
+          try {
+            extension.stopCamera();
+          } catch (error) {
+            errors.push(error);
+          }
+          activeName = null;
+        }
+        for (const entry of entries) {
+          try {
+            await disposeModel(entry.model);
+          } catch (error) {
+            errors.push(error);
+          }
+        }
         try {
-          extension.stopCamera();
+          extension.dispose();
         } catch (error) {
           errors.push(error);
         }
-        activeName = null;
-      }
-      for (const entry of entries) {
-        try {
-          await disposeModel(entry.model);
-        } catch (error) {
-          errors.push(error);
+        if (errors.length > 0) {
+          throw new AggregateError(errors, 'Failed to release all pose models.');
         }
-      }
-      if (errors.length > 0) {
-        throw new AggregateError(errors, 'Failed to release all pose models.');
-      }
+      })();
+      return releasePromise;
     },
 
     isPoseModelRegistered(name) {
@@ -313,6 +404,7 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
     },
 
     startCamera() {
+      ensureActive();
       return extension.startCamera();
     },
 
@@ -325,6 +417,7 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
     },
 
     async startRecognition() {
+      ensureActive();
       if (!activeName) {
         throw compositionError('TMPOSE-COMPOSITION-006', 'Activate a pose model first.');
       }
@@ -349,6 +442,50 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
 
     confidenceOf(name) {
       return Number(extension.poseScoreReporter({NAME: requireName(name)}));
+    },
+
+    configureAccumulatedPose(input) {
+      ensureActive();
+      const configuration = validateAccumulatedPoseConfiguration(input);
+      extension.setAccumulatedPoseParameters({
+        ACCUMULATION: configuration.accumulationPerSecond,
+        DECAY: configuration.decayPerSecond
+      });
+      extension.setAccumulatedPoseThreshold({THRESHOLD: configuration.scoreThreshold});
+    },
+
+    resetAccumulatedPose() {
+      ensureActive();
+      extension.resetAccumulatedPose();
+    },
+
+    accumulatedPose() {
+      return String(extension.accumulatedPoseReporter());
+    },
+
+    accumulatedScore() {
+      return Number(extension.accumulatedScoreReporter());
+    },
+
+    accumulatedScoreOf(name) {
+      return Number(extension.accumulatedPoseScoreReporter({NAME: requireName(name)}));
+    },
+
+    subscribeAccumulatedPose(listener) {
+      ensureActive();
+      if (typeof listener !== 'function') {
+        throw compositionError(
+          'TMPOSE-COMPOSITION-008',
+          'Accumulated pose listener must be a function.'
+        );
+      }
+      accumulatedPoseListeners.add(listener);
+      let subscribed = true;
+      return () => {
+        if (!subscribed) return;
+        subscribed = false;
+        accumulatedPoseListeners.delete(listener);
+      };
     }
   };
   return Object.freeze(composition);
