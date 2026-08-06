@@ -427,6 +427,8 @@ describe('TMPose composition API', () => {
     vi.mocked(document.querySelector).mockReturnValue(stage);
     const oldModel = model(['old']);
     const newModel = model(['new']);
+    const oldEstimate = deferred<{posenetOutput: Float32Array}>();
+    oldModel.estimatePose.mockImplementation(() => oldEstimate.promise);
     const loaded = [oldModel, newModel];
     function Webcam() {
       return webcam;
@@ -439,13 +441,26 @@ describe('TMPose composition API', () => {
     await composition.registerPoseModel({name: 'New', files: files(2)});
     composition.activatePoseModel('Old');
     await composition.startRecognition();
+    animationCallbacks.shift()!();
+    await vi.waitFor(() => expect(oldModel.estimatePose).toHaveBeenCalledOnce());
     composition.stopRecognition();
     composition.activatePoseModel('New');
-    await composition.releasePoseModel('Old');
+    let oldReleaseCompleted = false;
+    const oldRelease = composition.releasePoseModel('Old').then(() => {
+      oldReleaseCompleted = true;
+    });
+    await Promise.resolve();
+
+    expect(oldReleaseCompleted).toBe(false);
+    expect(oldModel.model.dispose).not.toHaveBeenCalled();
+    oldEstimate.resolve({posenetOutput: new Float32Array([1])});
+    await oldRelease;
 
     expect(composition.isCameraRunning()).toBe(true);
     expect(composition.getActivePoseModelName()).toBe('New');
     expect(stopTrack).not.toHaveBeenCalled();
+    expect(oldModel.predict).toHaveBeenCalledOnce();
+    expect(newModel.predict).not.toHaveBeenCalled();
     expect(oldModel.model.dispose).toHaveBeenCalledOnce();
     expect(oldModel.posenetModel.dispose).toHaveBeenCalledOnce();
 

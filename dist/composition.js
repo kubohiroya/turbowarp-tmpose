@@ -106,6 +106,7 @@ class TMPoseExtension {
     this.predicting = false;
     this.loopStarted = false;
     this.loopGeneration = 0;
+    this.activeModelOperations = /* @__PURE__ */ new Map();
     this.currentPoseName = "";
     this.score = 0;
     this.predictions = {};
@@ -458,6 +459,28 @@ class TMPoseExtension {
     const generation = ++this.loopGeneration;
     void this.loop(generation);
   }
+  trackPreparedModelOperation(model, operation) {
+    let active = this.activeModelOperations.get(model);
+    if (!active) {
+      active = /* @__PURE__ */ new Set();
+      this.activeModelOperations.set(model, active);
+    }
+    active.add(operation);
+    void operation.then(
+      () => {
+        active.delete(operation);
+        if (active.size === 0) this.activeModelOperations.delete(model);
+      },
+      () => {
+        active.delete(operation);
+        if (active.size === 0) this.activeModelOperations.delete(model);
+      }
+    );
+    return operation;
+  }
+  async waitForPreparedModelIdle(model) {
+    await Promise.allSettled([...this.activeModelOperations.get(model) ?? []]);
+  }
   async loop(generation = this.loopGeneration) {
     if (generation !== this.loopGeneration || !this.cameraRunning || !this.webcam) {
       if (generation === this.loopGeneration) this.loopStarted = false;
@@ -466,11 +489,19 @@ class TMPoseExtension {
     try {
       this.webcam.update();
       if (this.predicting && this.model) {
+        const model = this.model;
         const first = this.firstPredictMs === 0;
         const startedAt = first ? performance.now() : 0;
-        const estimate = await this.model.estimatePose(this.webcam.canvas);
-        const prediction = await this.model.predict(estimate.posenetOutput);
-        if (generation !== this.loopGeneration || !this.cameraRunning) return;
+        const prediction = await this.trackPreparedModelOperation(
+          model,
+          (async () => {
+            const estimate = await model.estimatePose(this.webcam.canvas);
+            return model.predict(estimate.posenetOutput);
+          })()
+        );
+        if (generation !== this.loopGeneration || !this.cameraRunning || !this.predicting || this.model !== model) {
+          return;
+        }
         if (first) this.firstPredictMs = Math.round(performance.now() - startedAt);
         let best = { className: "", probability: 0 };
         this.predictions = {};
@@ -791,8 +822,8 @@ function createTMPoseComposition(options) {
   const models = /* @__PURE__ */ new Map();
   const versions = /* @__PURE__ */ new Map();
   const pendingRegistrations = /* @__PURE__ */ new Map();
-  const disposedModels = /* @__PURE__ */ new WeakSet();
-  const disposedResources = /* @__PURE__ */ new WeakSet();
+  const modelDisposals = /* @__PURE__ */ new WeakMap();
+  const resourceDisposals = /* @__PURE__ */ new WeakMap();
   let activeName = null;
   let released = false;
   let releasePromise = null;
@@ -834,55 +865,62 @@ function createTMPoseComposition(options) {
     }
   }
   async function disposeResource(resource) {
-    if (disposedResources.has(resource)) return;
-    disposedResources.add(resource);
-    await resource.dispose();
+    const existing = resourceDisposals.get(resource);
+    if (existing) return existing;
+    const operation = Promise.resolve().then(() => resource.dispose());
+    resourceDisposals.set(resource, operation);
+    return operation;
   }
-  async function disposeModel(model) {
-    if (disposedModels.has(model)) return;
-    disposedModels.add(model);
-    const errors = [];
-    let resources;
-    if (hasOfficialResourceShape(model)) {
-      const classifier = disposableResource(model.model);
-      const poseNet = disposableResource(model.posenetModel);
-      resources = [classifier, poseNet].filter(
-        (resource) => resource !== null
-      );
-      if (!classifier || !poseNet || classifier === poseNet) {
-        errors.push(
-          compositionError(
-            "TMPOSE-COMPOSITION-009",
-            "Loaded pose model does not expose distinct disposable classifier and PoseNet resources."
-          )
+  function disposeModel(model) {
+    const existing = modelDisposals.get(model);
+    if (existing) return existing;
+    const operation = Promise.resolve().then(async () => {
+      await extension.waitForPreparedModelIdle(model);
+      const errors = [];
+      let resources;
+      if (hasOfficialResourceShape(model)) {
+        const classifier = disposableResource(model.model);
+        const poseNet = disposableResource(model.posenetModel);
+        resources = [classifier, poseNet].filter(
+          (resource) => resource !== null
+        );
+        if (!classifier || !poseNet || classifier === poseNet) {
+          errors.push(
+            compositionError(
+              "TMPOSE-COMPOSITION-009",
+              "Loaded pose model does not expose distinct disposable classifier and PoseNet resources."
+            )
+          );
+        }
+      } else {
+        const legacy = disposableResource(model);
+        resources = legacy ? [legacy] : [];
+        if (!legacy) {
+          errors.push(
+            compositionError(
+              "TMPOSE-COMPOSITION-009",
+              "Loaded pose model does not expose a complete disposal contract."
+            )
+          );
+        }
+      }
+      for (const resource of resources) {
+        try {
+          await disposeResource(resource);
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+      if (errors.length > 0) {
+        throw aggregateCompositionError(
+          "TMPOSE-COMPOSITION-009",
+          "TMPose could not completely dispose a loaded pose model.",
+          errors
         );
       }
-    } else {
-      const legacy = disposableResource(model);
-      resources = legacy ? [legacy] : [];
-      if (!legacy) {
-        errors.push(
-          compositionError(
-            "TMPOSE-COMPOSITION-009",
-            "Loaded pose model does not expose a complete disposal contract."
-          )
-        );
-      }
-    }
-    for (const resource of resources) {
-      try {
-        await disposeResource(resource);
-      } catch (error) {
-        errors.push(error);
-      }
-    }
-    if (errors.length > 0) {
-      throw aggregateCompositionError(
-        "TMPOSE-COMPOSITION-009",
-        "TMPose could not completely dispose a loaded pose model.",
-        errors
-      );
-    }
+    });
+    modelDisposals.set(model, operation);
+    return operation;
   }
   function stopActiveModel(model) {
     const errors = [];

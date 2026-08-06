@@ -78,6 +78,8 @@ export declare class TMPoseExtension {
     attachPreviewToStage(): void;
     updatePreviewStyle(): void;
     startLoopIfNeeded(): void;
+    trackPreparedModelOperation(model: any, operation: any): any;
+    waitForPreparedModelIdle(model: any): Promise<void>;
     loop(generation?: any): Promise<void>;
     currentPoseReporter(): any;
     scoreReporter(): number;

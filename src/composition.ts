@@ -271,8 +271,8 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
   const models = new Map<string, ModelEntry>();
   const versions = new Map<string, number>();
   const pendingRegistrations = new Map<string, Set<Promise<PoseModelRegistration>>>();
-  const disposedModels = new WeakSet<object>();
-  const disposedResources = new WeakSet<object>();
+  const modelDisposals = new WeakMap<object, Promise<void>>();
+  const resourceDisposals = new WeakMap<object, Promise<void>>();
   let activeName: string | null = null;
   let released = false;
   let releasePromise: Promise<void> | null = null;
@@ -325,56 +325,63 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
   }
 
   async function disposeResource(resource: DisposableResource): Promise<void> {
-    if (disposedResources.has(resource)) return;
-    disposedResources.add(resource);
-    await resource.dispose();
+    const existing = resourceDisposals.get(resource);
+    if (existing) return existing;
+    const operation = Promise.resolve().then(() => resource.dispose());
+    resourceDisposals.set(resource, operation);
+    return operation;
   }
 
-  async function disposeModel(model: LoadedPoseModel): Promise<void> {
-    if (disposedModels.has(model)) return;
-    disposedModels.add(model);
-    const errors: unknown[] = [];
-    let resources: DisposableResource[];
-    if (hasOfficialResourceShape(model)) {
-      const classifier = disposableResource(model.model);
-      const poseNet = disposableResource(model.posenetModel);
-      resources = [classifier, poseNet].filter(
-        (resource): resource is DisposableResource => resource !== null
-      );
-      if (!classifier || !poseNet || classifier === poseNet) {
-        errors.push(
-          compositionError(
-            'TMPOSE-COMPOSITION-009',
-            'Loaded pose model does not expose distinct disposable classifier and PoseNet resources.'
-          )
+  function disposeModel(model: LoadedPoseModel): Promise<void> {
+    const existing = modelDisposals.get(model);
+    if (existing) return existing;
+    const operation = Promise.resolve().then(async () => {
+      await extension.waitForPreparedModelIdle(model);
+      const errors: unknown[] = [];
+      let resources: DisposableResource[];
+      if (hasOfficialResourceShape(model)) {
+        const classifier = disposableResource(model.model);
+        const poseNet = disposableResource(model.posenetModel);
+        resources = [classifier, poseNet].filter(
+          (resource): resource is DisposableResource => resource !== null
+        );
+        if (!classifier || !poseNet || classifier === poseNet) {
+          errors.push(
+            compositionError(
+              'TMPOSE-COMPOSITION-009',
+              'Loaded pose model does not expose distinct disposable classifier and PoseNet resources.'
+            )
+          );
+        }
+      } else {
+        const legacy = disposableResource(model);
+        resources = legacy ? [legacy] : [];
+        if (!legacy) {
+          errors.push(
+            compositionError(
+              'TMPOSE-COMPOSITION-009',
+              'Loaded pose model does not expose a complete disposal contract.'
+            )
+          );
+        }
+      }
+      for (const resource of resources) {
+        try {
+          await disposeResource(resource);
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+      if (errors.length > 0) {
+        throw aggregateCompositionError(
+          'TMPOSE-COMPOSITION-009',
+          'TMPose could not completely dispose a loaded pose model.',
+          errors
         );
       }
-    } else {
-      const legacy = disposableResource(model);
-      resources = legacy ? [legacy] : [];
-      if (!legacy) {
-        errors.push(
-          compositionError(
-            'TMPOSE-COMPOSITION-009',
-            'Loaded pose model does not expose a complete disposal contract.'
-          )
-        );
-      }
-    }
-    for (const resource of resources) {
-      try {
-        await disposeResource(resource);
-      } catch (error) {
-        errors.push(error);
-      }
-    }
-    if (errors.length > 0) {
-      throw aggregateCompositionError(
-        'TMPOSE-COMPOSITION-009',
-        'TMPose could not completely dispose a loaded pose model.',
-        errors
-      );
-    }
+    });
+    modelDisposals.set(model, operation);
+    return operation;
   }
 
   function stopActiveModel(model: LoadedPoseModel): unknown[] {
