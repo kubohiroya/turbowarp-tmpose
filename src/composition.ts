@@ -62,6 +62,12 @@ export interface TMPoseCompositionOptions {
 type LoadedPoseModel = {
   dispose?: () => void | Promise<void>;
   getClassLabels?: () => unknown;
+  model?: unknown;
+  posenetModel?: unknown;
+};
+
+type DisposableResource = {
+  dispose: () => void | Promise<void>;
 };
 
 type ModelEntry = {
@@ -83,6 +89,29 @@ function abortError(name: string): Error {
   const error = new Error(`TMPose model registration was cancelled: ${name}`);
   error.name = 'AbortError';
   return error;
+}
+
+function aggregateCompositionError(code: string, message: string, errors: unknown[]): AggregateError {
+  const error = new AggregateError(errors, message);
+  Object.defineProperty(error, 'code', {value: code});
+  return error;
+}
+
+function disposableResource(value: unknown): DisposableResource | null {
+  return isRecord(value) && typeof value.dispose === 'function'
+    ? (value as unknown as DisposableResource)
+    : null;
+}
+
+function hasOfficialResourceShape(model: LoadedPoseModel): boolean {
+  return Object.hasOwn(model, 'model') || Object.hasOwn(model, 'posenetModel');
+}
+
+function hasCompleteDisposalContract(model: LoadedPoseModel): boolean {
+  if (!hasOfficialResourceShape(model)) return disposableResource(model) !== null;
+  const classifier = disposableResource(model.model);
+  const poseNet = disposableResource(model.posenetModel);
+  return classifier !== null && poseNet !== null && classifier !== poseNet;
 }
 
 function requireName(value: unknown): string {
@@ -241,7 +270,9 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
   );
   const models = new Map<string, ModelEntry>();
   const versions = new Map<string, number>();
+  const pendingRegistrations = new Map<string, Set<Promise<PoseModelRegistration>>>();
   const disposedModels = new WeakSet<object>();
+  const disposedResources = new WeakSet<object>();
   let activeName: string | null = null;
   let released = false;
   let releasePromise: Promise<void> | null = null;
@@ -258,10 +289,92 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
     return version;
   }
 
+  function trackRegistration(
+    name: string,
+    operation: Promise<PoseModelRegistration>
+  ): Promise<PoseModelRegistration> {
+    let pending = pendingRegistrations.get(name);
+    if (!pending) {
+      pending = new Set();
+      pendingRegistrations.set(name, pending);
+    }
+    pending.add(operation);
+    void operation.then(
+      () => {
+        pending!.delete(operation);
+        if (pending!.size === 0) pendingRegistrations.delete(name);
+      },
+      () => {
+        pending!.delete(operation);
+        if (pending!.size === 0) pendingRegistrations.delete(name);
+      }
+    );
+    return operation;
+  }
+
+  async function waitForRegistrations(
+    operations: ReadonlyArray<Promise<PoseModelRegistration>>,
+    errors: unknown[]
+  ): Promise<void> {
+    const results = await Promise.allSettled(operations);
+    for (const result of results) {
+      if (result.status === 'rejected' && result.reason?.name !== 'AbortError') {
+        errors.push(result.reason);
+      }
+    }
+  }
+
+  async function disposeResource(resource: DisposableResource): Promise<void> {
+    if (disposedResources.has(resource)) return;
+    disposedResources.add(resource);
+    await resource.dispose();
+  }
+
   async function disposeModel(model: LoadedPoseModel): Promise<void> {
     if (disposedModels.has(model)) return;
     disposedModels.add(model);
-    await model.dispose?.();
+    const errors: unknown[] = [];
+    let resources: DisposableResource[];
+    if (hasOfficialResourceShape(model)) {
+      const classifier = disposableResource(model.model);
+      const poseNet = disposableResource(model.posenetModel);
+      resources = [classifier, poseNet].filter(
+        (resource): resource is DisposableResource => resource !== null
+      );
+      if (!classifier || !poseNet || classifier === poseNet) {
+        errors.push(
+          compositionError(
+            'TMPOSE-COMPOSITION-009',
+            'Loaded pose model does not expose distinct disposable classifier and PoseNet resources.'
+          )
+        );
+      }
+    } else {
+      const legacy = disposableResource(model);
+      resources = legacy ? [legacy] : [];
+      if (!legacy) {
+        errors.push(
+          compositionError(
+            'TMPOSE-COMPOSITION-009',
+            'Loaded pose model does not expose a complete disposal contract.'
+          )
+        );
+      }
+    }
+    for (const resource of resources) {
+      try {
+        await disposeResource(resource);
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (errors.length > 0) {
+      throw aggregateCompositionError(
+        'TMPOSE-COMPOSITION-009',
+        'TMPose could not completely dispose a loaded pose model.',
+        errors
+      );
+    }
   }
 
   function stopActiveModel(model: LoadedPoseModel): unknown[] {
@@ -281,41 +394,54 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
   }
 
   const composition: TMPoseComposition = {
-    async registerPoseModel(input) {
-      ensureActive();
-      if (!isRecord(input)) {
-        throw compositionError('TMPOSE-COMPOSITION-001', 'Pose model input must be an object.');
-      }
-      const name = requireName(input.name);
-      const files = validateFiles(input, createFile);
-      if (activeName === name && extension.isPredicting()) {
-        throw compositionError(
-          'TMPOSE-COMPOSITION-005',
-          `Stop recognition before replacing active pose model ${name}.`
-        );
-      }
-      const version = nextVersion(name);
-      const loaded = await runtime.loadFromFiles(files.model, files.weights, files.metadata);
-      if (!isRecord(loaded)) {
-        throw compositionError('TMPOSE-COMPOSITION-004', `TMPose failed to load model ${name}.`);
-      }
-      const model = loaded as LoadedPoseModel;
-      if (versions.get(name) !== version) {
-        await disposeModel(model);
-        throw abortError(name);
-      }
-      let registration: PoseModelRegistration;
+    registerPoseModel(input) {
+      let name: string;
+      let files: ReturnType<typeof validateFiles>;
+      let version: number;
       try {
-        registration = Object.freeze({name, labels: labelsFor(model)});
-        if (activeName === name) extension.usePreparedModel(model);
+        ensureActive();
+        if (!isRecord(input)) {
+          throw compositionError('TMPOSE-COMPOSITION-001', 'Pose model input must be an object.');
+        }
+        name = requireName(input.name);
+        files = validateFiles(input, createFile);
+        if (activeName === name && extension.isPredicting()) {
+          throw compositionError(
+            'TMPOSE-COMPOSITION-005',
+            `Stop recognition before replacing active pose model ${name}.`
+          );
+        }
+        version = nextVersion(name);
       } catch (error) {
-        await disposeModel(model);
-        throw error;
+        return Promise.reject(error);
       }
-      const previous = models.get(name);
-      models.set(name, {model, registration});
-      if (previous) await disposeModel(previous.model);
-      return registration;
+      const operation = (async () => {
+        const loaded = await runtime.loadFromFiles(files.model, files.weights, files.metadata);
+        if (!isRecord(loaded)) {
+          throw compositionError('TMPOSE-COMPOSITION-004', `TMPose failed to load model ${name}.`);
+        }
+        const model = loaded as LoadedPoseModel;
+        if (!hasCompleteDisposalContract(model)) {
+          await disposeModel(model);
+        }
+        if (versions.get(name) !== version) {
+          await disposeModel(model);
+          throw abortError(name);
+        }
+        let registration: PoseModelRegistration;
+        try {
+          registration = Object.freeze({name, labels: labelsFor(model)});
+          if (activeName === name) extension.usePreparedModel(model);
+        } catch (error) {
+          await disposeModel(model);
+          throw error;
+        }
+        const previous = models.get(name);
+        models.set(name, {model, registration});
+        if (previous) await disposeModel(previous.model);
+        return registration;
+      })();
+      return trackRegistration(name, operation);
     },
 
     activatePoseModel(name) {
@@ -342,15 +468,19 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
       ensureActive();
       const normalizedName = requireName(name);
       nextVersion(normalizedName);
+      const pending = [...(pendingRegistrations.get(normalizedName) ?? [])];
       const entry = models.get(normalizedName);
-      if (!entry) return;
-      models.delete(normalizedName);
-      const errors = activeName === normalizedName ? stopActiveModel(entry.model) : [];
-      try {
-        await disposeModel(entry.model);
-      } catch (error) {
-        errors.push(error);
+      const errors: unknown[] = [];
+      if (entry) {
+        models.delete(normalizedName);
+        if (activeName === normalizedName) errors.push(...stopActiveModel(entry.model));
+        try {
+          await disposeModel(entry.model);
+        } catch (error) {
+          errors.push(error);
+        }
       }
+      await waitForRegistrations(pending, errors);
       if (errors.length > 0) {
         throw new AggregateError(errors, `Failed to release pose model ${normalizedName}.`);
       }
@@ -362,6 +492,9 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
       accumulatedPoseListeners.clear();
       releasePromise = (async () => {
         for (const name of versions.keys()) nextVersion(name);
+        const pending = [...pendingRegistrations.values()].flatMap((operations) => [
+          ...operations
+        ]);
         const entries = [...models.values()].reverse();
         const activeEntry = activeName ? models.get(activeName) : null;
         models.clear();
@@ -383,6 +516,7 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
             errors.push(error);
           }
         }
+        await waitForRegistrations(pending, errors);
         try {
           extension.dispose();
         } catch (error) {
