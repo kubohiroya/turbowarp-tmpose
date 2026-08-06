@@ -84,7 +84,6 @@ code {
 .topbar-inner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   width: min(1160px, calc(100% - 36px));
   min-height: 68px;
   margin: 0 auto;
@@ -113,29 +112,46 @@ code {
   letter-spacing: 0.02em;
 }
 
-.top-links {
+.primary-nav {
   display: flex;
   align-items: center;
   gap: 19px;
+  margin-left: auto;
   font-size: 0.88rem;
   font-weight: 700;
 }
 
-.top-links a {
+.primary-nav a {
   color: var(--muted);
   text-decoration: none;
 }
 
-.top-links a:hover,
-.top-links a[aria-current="page"] {
+.primary-nav a:hover {
   color: var(--teal);
 }
 
-.language {
-  padding: 6px 11px;
+.language-switch {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 3px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: white;
+  white-space: nowrap;
+}
+
+.language-switch a {
+  padding: 4px 9px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.language-switch a[aria-current="page"] {
+  color: var(--ink);
+  background: var(--teal-soft);
 }
 
 .github-link {
@@ -147,7 +163,7 @@ code {
   gap: 7px;
 }
 
-.top-links .github-link:hover {
+.github-link:hover {
   border-color: var(--line);
   background: white;
   color: var(--ink);
@@ -165,8 +181,10 @@ code {
   font-size: 0.8rem;
 }
 
+.brand:focus-visible,
+.primary-nav a:focus-visible,
 .github-link:focus-visible,
-.language:focus-visible,
+.language-switch a:focus-visible,
 .button:focus-visible {
   outline: 3px solid var(--gold);
   outline-offset: 3px;
@@ -870,24 +888,22 @@ footer {
     width: min(100% - 24px, 1160px);
   }
 
-  .top-links a:not(.language):not(.github-link) {
+  .primary-nav {
     display: none;
   }
 
-  .top-links {
-    gap: 8px;
+  .github-link {
+    margin-left: auto;
   }
 
   .github-link {
-    width: 40px;
-    height: 40px;
     justify-content: center;
-    padding: 0;
+    padding: 6px 10px;
     border-color: var(--line);
     background: white;
   }
 
-  .github-label {
+  .brand-label {
     display: none;
   }
 
