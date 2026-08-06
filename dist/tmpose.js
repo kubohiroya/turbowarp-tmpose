@@ -509,19 +509,19 @@
             })()
           );
           if (generation !== this.loopGeneration || !this.cameraRunning || !this.predicting || this.model !== model) {
-            return;
-          }
-          if (first) this.firstPredictMs = Math.round(performance.now() - startedAt);
-          let best = { className: "", probability: 0 };
-          this.predictions = {};
-          for (const result of prediction) {
-            this.predictions[result.className] = result.probability;
-            if (result.probability > best.probability) best = result;
-          }
-          this.currentPoseName = best.className;
-          this.score = best.probability;
-          if (this.featureFlags.temporalPoseScoring) {
-            this.updateAccumulatedPose(prediction);
+          } else {
+            if (first) this.firstPredictMs = Math.round(performance.now() - startedAt);
+            let best = { className: "", probability: 0 };
+            this.predictions = {};
+            for (const result of prediction) {
+              this.predictions[result.className] = result.probability;
+              if (result.probability > best.probability) best = result;
+            }
+            this.currentPoseName = best.className;
+            this.score = best.probability;
+            if (this.featureFlags.temporalPoseScoring) {
+              this.updateAccumulatedPose(prediction);
+            }
           }
         }
       } catch (error) {

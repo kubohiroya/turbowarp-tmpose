@@ -495,7 +495,7 @@ export class TMPoseExtension {
     void this.loop(generation);
   }
 
-  trackPreparedModelOperation(model, operation) {
+  private trackPreparedModelOperation<T>(model: object, operation: Promise<T>): Promise<T> {
     let active = this.activeModelOperations.get(model);
     if (!active) {
       active = new Set();
@@ -515,7 +515,7 @@ export class TMPoseExtension {
     return operation;
   }
 
-  async waitForPreparedModelIdle(model) {
+  async waitForPreparedModelIdle(model: object): Promise<void> {
     await Promise.allSettled([...(this.activeModelOperations.get(model) ?? [])]);
   }
 
@@ -543,19 +543,20 @@ export class TMPoseExtension {
           !this.predicting ||
           this.model !== model
         ) {
-          return;
-        }
-        if (first) this.firstPredictMs = Math.round(performance.now() - startedAt);
-        let best = {className: '', probability: 0};
-        this.predictions = {};
-        for (const result of prediction) {
-          this.predictions[result.className] = result.probability;
-          if (result.probability > best.probability) best = result;
-        }
-        this.currentPoseName = best.className;
-        this.score = best.probability;
-        if (this.featureFlags.temporalPoseScoring) {
-          this.updateAccumulatedPose(prediction);
+          // The old result is stale, but a still-running camera keeps its frame loop alive.
+        } else {
+          if (first) this.firstPredictMs = Math.round(performance.now() - startedAt);
+          let best = {className: '', probability: 0};
+          this.predictions = {};
+          for (const result of prediction) {
+            this.predictions[result.className] = result.probability;
+            if (result.probability > best.probability) best = result;
+          }
+          this.currentPoseName = best.className;
+          this.score = best.probability;
+          if (this.featureFlags.temporalPoseScoring) {
+            this.updateAccumulatedPose(prediction);
+          }
         }
       }
     } catch (error) {

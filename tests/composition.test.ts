@@ -464,6 +464,11 @@ describe('TMPose composition API', () => {
     expect(oldModel.model.dispose).toHaveBeenCalledOnce();
     expect(oldModel.posenetModel.dispose).toHaveBeenCalledOnce();
 
+    expect(animationCallbacks).toHaveLength(1);
+    await composition.startRecognition();
+    animationCallbacks.shift()!();
+    await vi.waitFor(() => expect(newModel.predict).toHaveBeenCalledOnce());
+
     await composition.releasePoseModel('New');
     expect(composition.isCameraRunning()).toBe(false);
     expect(stopTrack).toHaveBeenCalledOnce();
