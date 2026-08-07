@@ -57,6 +57,10 @@ export declare class TMPoseExtension {
                     value: string;
                 }[];
             };
+            cameraMenu: {
+                acceptReporters: boolean;
+                items: string;
+            };
         };
     };
     versionReporter(): string;
@@ -67,6 +71,18 @@ export declare class TMPoseExtension {
     startCamera(): Promise<void>;
     stopCamera(): void;
     isCameraRunning(): any;
+    getCameraMenuItems(): {
+        text: any;
+        value: string;
+    }[];
+    refreshCameraDevices(): Promise<any>;
+    refreshCameraList(): Promise<void>;
+    setCameraSelection(args: any): any;
+    applyCameraSelection(selection: any): Promise<void>;
+    updateActiveCameraInfo(): void;
+    cameraCountReporter(): any;
+    cameraDeviceIdReporter(): any;
+    cameraDeviceNameReporter(): any;
     showPreview(): void;
     hidePreview(): void;
     isPreviewVisible(): any;

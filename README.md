@@ -170,7 +170,18 @@ individually.
 Live confidence reacts quickly and can fluctuate near a decision boundary. Better training data,
 lighting, camera framing, and a suitable threshold usually improve the result.
 
-## Camera preview and stopping
+## Camera selection, preview, and stopping
+
+Use `refresh camera list` to detect video inputs, then choose `default camera`, `front camera`,
+`back camera`, or a detected device with `set camera to [CAMERA]`. Camera labels may be unavailable
+until the browser grants camera permission. Device IDs are browser- and machine-specific, so use
+the portable front/back choices when a project moves between devices. Changing the selection while
+the camera is running restarts only the camera stream, preserving the loaded model, recognition
+state, and preview settings. If switching fails, TMPose attempts to restore the previous camera and
+records the error in `last error`.
+
+`camera count` reports the latest refreshed count. `camera device ID` and `camera device name`
+report the active input when the browser provides those values.
 
 The preview is a camera canvas placed over the TurboWarp stage. It can be shown, hidden, moved to
 six stage positions, made transparent, or expanded to fill the stage. Hiding the preview does not
@@ -271,6 +282,52 @@ Reports whether the camera is running.
 |---|---|
 | Type | BOOLEAN |
 | Opcode | `isCameraRunning` |
+
+### `refresh camera list`
+
+Refreshes the list of available video input devices.
+
+| Property | Value |
+|---|---|
+| Type | COMMAND |
+| Opcode | `refreshCameraList` |
+
+### `set camera to [CAMERA]`
+
+Selects the default, front, back, or a detected camera and switches a running camera.
+
+| Property | Value |
+|---|---|
+| Type | COMMAND |
+| Opcode | `setCameraSelection` |
+| `CAMERA` | STRING, default: `default`, menu: `cameraMenu` |
+
+### `camera count`
+
+Returns the number of video input devices found by the latest refresh.
+
+| Property | Value |
+|---|---|
+| Type | REPORTER |
+| Opcode | `cameraCountReporter` |
+
+### `camera device ID`
+
+Returns the active camera device ID when available.
+
+| Property | Value |
+|---|---|
+| Type | REPORTER |
+| Opcode | `cameraDeviceIdReporter` |
+
+### `camera device name`
+
+Returns the active camera device name when available.
+
+| Property | Value |
+|---|---|
+| Type | REPORTER |
+| Opcode | `cameraDeviceNameReporter` |
 
 ### `show camera preview`
 
