@@ -21,6 +21,7 @@ export interface AccumulatedPoseConfiguration {
     decayPerSecond: number;
     scoreThreshold: number;
 }
+export type PreviewMirroring = 'mirrored' | 'unmirrored';
 export type AccumulatedPoseListener = (event: Readonly<AccumulatedPoseChangedEventV1>) => void;
 export interface TMPoseComposition {
     registerPoseModel(input: PoseModelRegistrationInput): Promise<PoseModelRegistration>;
@@ -29,6 +30,7 @@ export interface TMPoseComposition {
     releaseAll(): Promise<void>;
     isPoseModelRegistered(name: unknown): boolean;
     getActivePoseModelName(): string | null;
+    setPreviewMirroring(mode: PreviewMirroring): void;
     startCamera(): Promise<void>;
     stopCamera(): void;
     isCameraRunning(): boolean;

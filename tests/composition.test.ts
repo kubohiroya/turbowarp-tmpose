@@ -389,6 +389,53 @@ describe('TMPose composition API', () => {
     expect(activeModels).toBe(0);
   });
 
+  it('controls preview mirroring before startup and while the camera is running', async () => {
+    const stage = element();
+    const canvas = element('CANVAS');
+    const webcam = {
+      canvas,
+      webcam: {srcObject: null},
+      setup: vi.fn(async () => undefined),
+      play: vi.fn(async () => undefined),
+      update: vi.fn()
+    };
+    const Webcam = vi.fn(function () {
+      return webcam;
+    });
+    vi.mocked(document.querySelector).mockReturnValue(stage);
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: Webcam as never, loadFromFiles: vi.fn()},
+      createFile
+    });
+
+    composition.setPreviewMirroring('unmirrored');
+    await composition.startCamera();
+    expect(Webcam).toHaveBeenCalledWith(320, 240, true);
+    expect(canvas.style.transform).toBe('scaleX(-1)');
+
+    composition.setPreviewMirroring('mirrored');
+    expect(canvas.style.transform).toBe('');
+    composition.stopCamera();
+    composition.setPreviewMirroring('unmirrored');
+    await composition.startCamera();
+    expect(canvas.style.transform).toBe('scaleX(-1)');
+  });
+
+  it('rejects non-canonical composition preview mirroring values', async () => {
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: class {}, loadFromFiles: vi.fn()},
+      createFile
+    });
+
+    expect(() => composition.setPreviewMirroring('normal' as never)).toThrow(
+      expect.objectContaining({code: 'TMPOSE-COMPOSITION-010'})
+    );
+    await composition.releaseAll();
+    expect(() => composition.setPreviewMirroring('mirrored')).toThrow(
+      expect.objectContaining({code: 'TMPOSE-COMPOSITION-007'})
+    );
+  });
+
   it('runs recognition only with the active model and releases camera and models once', async () => {
     const stage = element();
     const canvas = element('CANVAS');

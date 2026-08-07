@@ -28,6 +28,8 @@ export interface AccumulatedPoseConfiguration {
   scoreThreshold: number;
 }
 
+export type PreviewMirroring = 'mirrored' | 'unmirrored';
+
 export type AccumulatedPoseListener = (event: Readonly<AccumulatedPoseChangedEventV1>) => void;
 
 export interface TMPoseComposition {
@@ -37,6 +39,7 @@ export interface TMPoseComposition {
   releaseAll(): Promise<void>;
   isPoseModelRegistered(name: unknown): boolean;
   getActivePoseModelName(): string | null;
+  setPreviewMirroring(mode: PreviewMirroring): void;
   startCamera(): Promise<void>;
   stopCamera(): void;
   isCameraRunning(): boolean;
@@ -198,6 +201,16 @@ function validateAccumulatedPoseConfiguration(value: unknown): AccumulatedPoseCo
     );
   }
   return {accumulationPerSecond, decayPerSecond, scoreThreshold};
+}
+
+function validatePreviewMirroring(value: unknown): PreviewMirroring {
+  if (value !== 'mirrored' && value !== 'unmirrored') {
+    throw compositionError(
+      'TMPOSE-COMPOSITION-010',
+      'Preview mirroring must be either mirrored or unmirrored.'
+    );
+  }
+  return value;
 }
 
 function validateFiles(
@@ -560,6 +573,11 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
 
     getActivePoseModelName() {
       return activeName;
+    },
+
+    setPreviewMirroring(mode) {
+      ensureActive();
+      extension.setPreviewMirroring({MIRRORING: validatePreviewMirroring(mode)});
     },
 
     startCamera() {
