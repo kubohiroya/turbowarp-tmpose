@@ -242,6 +242,9 @@
           <p>映像の取得と認識を分けて制御できます。</p>
           <ul>
             <li><code>start camera</code> · <code>stop camera</code> · <code>camera is running?</code></li>
+            <li><code>refresh camera list</code> で利用可能な映像入力を検出します。</li>
+            <li><code>set camera to [CAMERA]</code> · 既定、前面、背面、または検出済みカメラ</li>
+            <li><code>camera count</code> · <code>camera device ID</code> · <code>camera device name</code></li>
             <li><code>show camera preview</code> · <code>hide camera preview</code></li>
             <li><code>camera preview is visible?</code></li>
             <li><code>set camera preview opacity to [OPACITY]</code> は透明度を 0〜1 に収めます。</li>
@@ -249,6 +252,7 @@
             <li><code>set camera preview to [MIRRORING]</code> · <code>mirrored</code>（左右反転、既定）または <code>unmirrored</code>（そのまま）</li>
             <li><code>camera preview mirroring</code> は現在の設定値を返します。</li>
           </ul>
+          <p>カメラ名は利用許可後に初めて表示される場合があります。device ID はブラウザーと端末に固有です。動作中の切り替えでもモデル、認識状態、プレビュー設定を維持し、失敗時は以前のカメラへの復旧を試みます。</p>
         </article>
         <article class="reference-card">
           <h3>認識と結果</h3>

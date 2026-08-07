@@ -31,12 +31,14 @@ function createElement(tagName = 'DIV', rect = visibleRect) {
 
 let querySelector: ReturnType<typeof vi.fn>;
 let querySelectorAll: ReturnType<typeof vi.fn>;
+let enumerateDevices: ReturnType<typeof vi.fn>;
 let scripts: any[];
 
 beforeEach(() => {
   scripts = [];
   querySelector = vi.fn(() => null);
   querySelectorAll = vi.fn(() => []);
+  enumerateDevices = vi.fn(async () => []);
 
   vi.stubGlobal('document', {
     scripts,
@@ -57,6 +59,7 @@ beforeEach(() => {
   });
   vi.stubGlobal('requestAnimationFrame', vi.fn());
   vi.stubGlobal('performance', {now: vi.fn(() => 100)});
+  vi.stubGlobal('navigator', {mediaDevices: {enumerateDevices}});
   vi.stubGlobal('Scratch', {
     BlockType: {COMMAND: 'command', REPORTER: 'reporter', BOOLEAN: 'boolean', HAT: 'hat'},
     ArgumentType: {STRING: 'string', NUMBER: 'number', BOOLEAN: 'boolean'},
@@ -69,20 +72,26 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe('TMPoseExtension', () => {
   it('exposes the expected extension ID and blocks', () => {
-    const info = new TMPoseExtension().getInfo() as {id: string; docsURI: string; blocks: unknown[]};
+    const info = new TMPoseExtension().getInfo() as {
+      id: string;
+      docsURI: string;
+      blocks: unknown[];
+      menus: {cameraMenu: {items: string}};
+    };
     expect(info.id).toBe('tmpose');
     expect(info.docsURI).toBe(DOCS_URI);
     expect(info.docsURI).toBe('https://kubohiroya.github.io/turbowarp-tmpose/');
     expect(new TMPoseExtension().versionReporter()).toBe(VERSION);
     expect(VERSION).toBe('1.5.1-typescript');
-    expect(info.blocks).toHaveLength(26);
+    expect(info.blocks).toHaveLength(31);
+    expect(info.menus.cameraMenu.items).toBe('getCameraMenuItems');
   });
 
   it('exposes accumulated pose blocks only when the feature flag is enabled', () => {
     const info = new TMPoseExtension({temporalPoseScoring: true}).getInfo() as {
       blocks: Array<{opcode: string}>;
     };
-    expect(info.blocks).toHaveLength(32);
+    expect(info.blocks).toHaveLength(37);
     expect(info.blocks.map((block) => block.opcode)).toEqual(expect.arrayContaining([
       'setAccumulatedPoseParameters',
       'setAccumulatedPoseThreshold',
@@ -413,6 +422,152 @@ describe('TMPoseExtension', () => {
     expect(extension.cameraRunning).toBe(false);
     expect(extension.loopStarted).toBe(false);
     expect(extension.lastError).toContain('stage unavailable');
+  });
+
+  it('refreshes video inputs and exposes them through the dynamic camera menu', async () => {
+    enumerateDevices.mockResolvedValue([
+      {kind: 'audioinput', deviceId: 'microphone', label: 'Microphone'},
+      {kind: 'videoinput', deviceId: 'front-id', label: 'Front Camera'},
+      {kind: 'videoinput', deviceId: 'back-id', label: ''}
+    ]);
+    const extension = new TMPoseExtension();
+
+    await extension.refreshCameraList();
+
+    expect(extension.cameraCountReporter()).toBe(2);
+    expect(extension.getCameraMenuItems()).toEqual([
+      {text: 'default camera', value: 'default'},
+      {text: 'front camera', value: 'front'},
+      {text: 'back camera', value: 'back'},
+      {text: 'Front Camera', value: 'front-id'},
+      {text: 'camera 2', value: 'back-id'}
+    ]);
+  });
+
+  it('applies front camera constraints configured before startup', async () => {
+    const stage = createElement();
+    const canvas = createElement('CANVAS');
+    const setup = vi.fn(async () => undefined);
+    const videoTrack = {
+      kind: 'video',
+      label: 'Built-in Front Camera',
+      getSettings: () => ({deviceId: 'front-id'}),
+      stop: vi.fn()
+    };
+    const webcam = {
+      canvas,
+      webcam: {srcObject: {getVideoTracks: () => [videoTrack], getTracks: () => [videoTrack]}},
+      setup,
+      play: vi.fn(async () => undefined),
+      update: vi.fn()
+    };
+    function Webcam() {
+      return webcam;
+    }
+    enumerateDevices.mockResolvedValue([
+      {kind: 'videoinput', deviceId: 'front-id', label: 'Built-in Front Camera'}
+    ]);
+    const extension = new TMPoseExtension({}, {runtime: {Webcam} as never});
+    vi.spyOn(extension, 'findStageElement').mockReturnValue(stage);
+
+    await extension.setCameraSelection({CAMERA: 'front'});
+    await extension.startCamera();
+
+    expect(setup).toHaveBeenCalledWith({facingMode: {ideal: 'user'}});
+    expect(extension.cameraDeviceIdReporter()).toBe('front-id');
+    expect(extension.cameraDeviceNameReporter()).toBe('Built-in Front Camera');
+  });
+
+  it('switches a running camera by device ID without stopping recognition state', async () => {
+    const stage = createElement();
+    const firstStop = vi.fn();
+    const secondStop = vi.fn();
+    const createWebcam = (deviceId: string, label: string, stop: ReturnType<typeof vi.fn>) => {
+      const track = {kind: 'video', label, getSettings: () => ({deviceId}), stop};
+      return {
+        canvas: createElement('CANVAS'),
+        webcam: {srcObject: {getVideoTracks: () => [track], getTracks: () => [track]}},
+        setup: vi.fn(async () => undefined),
+        play: vi.fn(async () => undefined),
+        update: vi.fn()
+      };
+    };
+    const first = createWebcam('front-id', 'Front Camera', firstStop);
+    const second = createWebcam('external-id', 'External Camera', secondStop);
+    const webcams = [first, second];
+    function Webcam() {
+      return webcams.shift();
+    }
+    enumerateDevices.mockResolvedValue([
+      {kind: 'videoinput', deviceId: 'front-id', label: 'Front Camera'},
+      {kind: 'videoinput', deviceId: 'external-id', label: 'External Camera'}
+    ]);
+    const extension = new TMPoseExtension({}, {runtime: {Webcam} as never});
+    vi.spyOn(extension, 'findStageElement').mockReturnValue(stage);
+    await extension.startCamera();
+    const model = {
+      estimatePose: vi.fn(async () => ({posenetOutput: new Float32Array()})),
+      predict: vi.fn(async () => [])
+    };
+    extension.model = model;
+    extension.predicting = true;
+    extension.hidePreview();
+    extension.setPreviewOpacity({OPACITY: 0.4});
+    extension.setPreviewPosition({POSITION: 'center'});
+    extension.setPreviewMirroring({MIRRORING: 'unmirrored'});
+
+    await extension.setCameraSelection({CAMERA: 'external-id'});
+
+    expect(firstStop).toHaveBeenCalledOnce();
+    expect(second.setup).toHaveBeenCalledWith({deviceId: {exact: 'external-id'}});
+    expect(extension.predicting).toBe(true);
+    expect(extension.model).toBe(model);
+    expect(extension.cameraRunning).toBe(true);
+    expect(extension.cameraDeviceIdReporter()).toBe('external-id');
+    expect(extension.cameraDeviceNameReporter()).toBe('External Camera');
+    expect(second.canvas.style.display).toBe('none');
+    expect(second.canvas.style.opacity).toBe('0.4');
+    expect(second.canvas.style.transform).toBe('translate(-50%, -50%) scaleX(-1)');
+    expect(secondStop).not.toHaveBeenCalled();
+  });
+
+  it('rolls back to the previous camera when a running switch fails', async () => {
+    const stage = createElement();
+    const firstStop = vi.fn();
+    const firstTrack = {kind: 'video', label: 'Default Camera', getSettings: () => ({deviceId: 'default-id'}), stop: firstStop};
+    const rollbackTrack = {kind: 'video', label: 'Default Camera', getSettings: () => ({deviceId: 'default-id'}), stop: vi.fn()};
+    const first = {
+      canvas: createElement('CANVAS'),
+      webcam: {srcObject: {getVideoTracks: () => [firstTrack], getTracks: () => [firstTrack]}},
+      setup: vi.fn(async () => undefined), play: vi.fn(async () => undefined), update: vi.fn()
+    };
+    const failed = {
+      canvas: createElement('CANVAS'), webcam: {srcObject: null},
+      setup: vi.fn(async () => { throw new Error('camera unavailable'); }),
+      play: vi.fn(async () => undefined), update: vi.fn()
+    };
+    const rollback = {
+      canvas: createElement('CANVAS'),
+      webcam: {srcObject: {getVideoTracks: () => [rollbackTrack], getTracks: () => [rollbackTrack]}},
+      setup: vi.fn(async () => undefined), play: vi.fn(async () => undefined), update: vi.fn()
+    };
+    const webcams = [first, failed, rollback];
+    function Webcam() {
+      return webcams.shift();
+    }
+    const extension = new TMPoseExtension({}, {runtime: {Webcam} as never});
+    vi.spyOn(extension, 'findStageElement').mockReturnValue(stage);
+    await extension.startCamera();
+
+    await expect(extension.setCameraSelection({CAMERA: 'missing-id'})).rejects.toThrow('camera unavailable');
+
+    expect(firstStop).toHaveBeenCalledOnce();
+    expect(failed.setup).toHaveBeenCalledWith({deviceId: {exact: 'missing-id'}});
+    expect(rollback.setup).toHaveBeenCalledWith();
+    expect(extension.cameraSelection).toBe('default');
+    expect(extension.cameraRunning).toBe(true);
+    expect(extension.cameraDeviceIdReporter()).toBe('default-id');
+    expect(extension.lastError).toContain('camera unavailable');
   });
 
   it('supports hide then show preview', () => {

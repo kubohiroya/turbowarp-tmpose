@@ -60,6 +60,24 @@ const PREVIEW_MIRRORING_ALIASES: Record<string, boolean> = {
   'そのまま': false
 };
 
+const CAMERA_SELECTION_ITEMS = [
+  {text: 'default camera', value: 'default'},
+  {text: 'front camera', value: 'front'},
+  {text: 'back camera', value: 'back'}
+];
+
+const CAMERA_SELECTION_ALIASES: Record<string, string> = {
+  default: 'default',
+  front: 'front',
+  back: 'back',
+  user: 'front',
+  environment: 'back',
+  '既定': 'default',
+  'インカメラ': 'front',
+  '前面カメラ': 'front',
+  '背面カメラ': 'back'
+};
+
 const loadingPromises = new Map<string, Promise<void>>();
 
 function normalizePosition(value: unknown): string {
@@ -68,6 +86,19 @@ function normalizePosition(value: unknown): string {
 
 function normalizePreviewMirroring(value: unknown): boolean {
   return PREVIEW_MIRRORING_ALIASES[String(value ?? 'mirrored').trim().toLowerCase()] ?? true;
+}
+
+function normalizeCameraSelection(value: unknown): string {
+  const selection = String(value ?? 'default').trim();
+  if (!selection) return 'default';
+  return CAMERA_SELECTION_ALIASES[selection.toLowerCase()] ?? selection;
+}
+
+function cameraConstraints(selection: string): MediaTrackConstraints | undefined {
+  if (selection === 'front') return {facingMode: {ideal: 'user'}};
+  if (selection === 'back') return {facingMode: {ideal: 'environment'}};
+  if (selection === 'default') return undefined;
+  return {deviceId: {exact: selection}};
 }
 
 function scriptLoadedFor(src: string): boolean {
@@ -149,6 +180,11 @@ export class TMPoseExtension {
     this.model = null;
     this.webcam = null;
     this.cameraRunning = false;
+    this.cameraSelection = 'default';
+    this.cameraDevices = [];
+    this.activeCameraDeviceId = '';
+    this.activeCameraDeviceName = '';
+    this.cameraSelectionQueue = Promise.resolve();
     this.predicting = false;
     this.loopStarted = false;
     this.loopGeneration = 0;
@@ -212,6 +248,10 @@ export class TMPoseExtension {
         previewMirroringMenu: {
           acceptReporters: true,
           items: PREVIEW_MIRRORING_ITEMS.map((item) => ({text: Scratch.translate(item.text), value: item.value}))
+        },
+        cameraMenu: {
+          acceptReporters: true,
+          items: 'getCameraMenuItems'
         }
       }
     };
@@ -252,6 +292,8 @@ export class TMPoseExtension {
     this.previewStageElement = null;
     this.webcam = null;
     this.cameraRunning = false;
+    this.activeCameraDeviceId = '';
+    this.activeCameraDeviceName = '';
     this.loopStarted = false;
     this.loopGeneration += 1;
   }
@@ -266,10 +308,18 @@ export class TMPoseExtension {
       const startedAt = performance.now();
       await this.ensureLibrariesLoaded();
       this.webcam = new this.tmPoseRuntime.Webcam(320, 240, true);
-      await this.webcam.setup();
+      const constraints = cameraConstraints(this.cameraSelection);
+      if (constraints) await this.webcam.setup(constraints);
+      else await this.webcam.setup();
       await this.webcam.play();
       this.attachPreviewToStage();
       this.cameraRunning = true;
+      try {
+        await this.refreshCameraDevices();
+      } catch {
+        // Camera capture can still work when device enumeration is unavailable.
+      }
+      this.updateActiveCameraInfo();
       this.cameraMs = Math.round(performance.now() - startedAt);
       this.startLoopIfNeeded();
     } catch (error) {
@@ -293,6 +343,97 @@ export class TMPoseExtension {
   }
 
   isCameraRunning() { return this.cameraRunning; }
+
+  getCameraMenuItems() {
+    const fixedItems = CAMERA_SELECTION_ITEMS.map((item) => ({
+      text: Scratch.translate(item.text),
+      value: item.value
+    }));
+    const seen = new Set<string>();
+    const deviceItems = [];
+    this.cameraDevices.forEach((device, index) => {
+      if (!device.deviceId || seen.has(device.deviceId)) return;
+      seen.add(device.deviceId);
+      deviceItems.push({
+        text: device.label || `${Scratch.translate('camera')} ${index + 1}`,
+        value: device.deviceId
+      });
+    });
+    return [...fixedItems, ...deviceItems];
+  }
+
+  async refreshCameraDevices() {
+    const mediaDevices = typeof navigator === 'undefined' ? undefined : navigator.mediaDevices;
+    if (!mediaDevices || typeof mediaDevices.enumerateDevices !== 'function') {
+      throw new Error('TMPose: Camera enumeration is not available in this browser.');
+    }
+    const devices = await mediaDevices.enumerateDevices();
+    this.cameraDevices = devices
+      .filter((device) => device.kind === 'videoinput')
+      .map((device) => ({deviceId: device.deviceId, label: device.label}));
+    return this.cameraDevices;
+  }
+
+  async refreshCameraList() {
+    try {
+      this.lastError = '';
+      await this.refreshCameraDevices();
+      if (this.cameraRunning) this.updateActiveCameraInfo();
+    } catch (error) {
+      this.setLastError(error);
+      throw error;
+    }
+  }
+
+  setCameraSelection(args) {
+    const selection = normalizeCameraSelection(args.CAMERA);
+    const operation = this.cameraSelectionQueue.then(() => this.applyCameraSelection(selection));
+    this.cameraSelectionQueue = operation.catch(() => undefined);
+    return operation;
+  }
+
+  async applyCameraSelection(selection) {
+    const previousSelection = this.cameraSelection;
+    const wasRunning = this.cameraRunning;
+    this.cameraSelection = selection;
+    if (!wasRunning) return;
+
+    this.cleanupCameraResources();
+    try {
+      await this.startCamera();
+    } catch (switchError) {
+      this.cameraSelection = previousSelection;
+      try {
+        await this.startCamera();
+      } catch (rollbackError) {
+        const error = new AggregateError(
+          [switchError, rollbackError],
+          'TMPose: Camera switch and rollback both failed.'
+        );
+        this.setLastError(error);
+        throw error;
+      }
+      this.setLastError(switchError);
+      throw switchError;
+    }
+  }
+
+  updateActiveCameraInfo() {
+    const stream = this.webcam?.webcam?.srcObject;
+    const videoTrack = stream?.getVideoTracks?.()[0] ??
+      stream?.getTracks?.().find((track) => track.kind === 'video' || track.kind === undefined);
+    const settings = videoTrack?.getSettings?.() ?? {};
+    const selectedDeviceId = ['default', 'front', 'back'].includes(this.cameraSelection)
+      ? ''
+      : this.cameraSelection;
+    this.activeCameraDeviceId = String(settings.deviceId || selectedDeviceId);
+    const device = this.cameraDevices.find((candidate) => candidate.deviceId === this.activeCameraDeviceId);
+    this.activeCameraDeviceName = String(videoTrack?.label || device?.label || '');
+  }
+
+  cameraCountReporter() { return this.cameraDevices.length; }
+  cameraDeviceIdReporter() { return this.activeCameraDeviceId; }
+  cameraDeviceNameReporter() { return this.activeCameraDeviceName; }
 
   showPreview() {
     try {
