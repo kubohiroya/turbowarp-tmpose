@@ -9,7 +9,7 @@ const FEATURE_FLAGS = {
   accumulatedPoseEvents: false
 };
 const EXTENSION_ID = "tmpose";
-const VERSION = "1.6.0-typescript";
+const VERSION = "1.6.1-typescript";
 const DOCS_URI = "https://kubohiroya.github.io/turbowarp-tmpose/";
 const ACCUMULATED_POSE_CHANGED_EVENT = "TMPOSE_ACCUMULATED_POSE_CHANGED";
 const TFJS_URL = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js";

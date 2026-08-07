@@ -82,7 +82,7 @@ describe('TMPoseExtension', () => {
     expect(info.docsURI).toBe(DOCS_URI);
     expect(info.docsURI).toBe('https://kubohiroya.github.io/turbowarp-tmpose/');
     expect(new TMPoseExtension().versionReporter()).toBe(VERSION);
-    expect(VERSION).toBe('1.6.0-typescript');
+    expect(VERSION).toBe('1.6.1-typescript');
     expect(info.blocks).toHaveLength(31);
     expect(info.menus.cameraMenu.items).toBe('getCameraMenuItems');
   });
