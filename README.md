@@ -78,6 +78,7 @@ await pose.registerPoseModel({
   ],
 });
 pose.activatePoseModel('RescuePose');
+pose.setPreviewMirroring('unmirrored');
 pose.configureAccumulatedPose({
   accumulationPerSecond: 1,
   decayPerSecond: 0.9,
@@ -93,6 +94,11 @@ Each composition owns its model registry, active model, camera, and recognition 
 model with `releasePoseModel(name)` or release the complete instance with `releaseAll()`. Calling
 `releaseAll()` also removes accumulated-pose listeners. `subscribeAccumulatedPose()` returns an
 idempotent unsubscribe function.
+
+`setPreviewMirroring('mirrored' | 'unmirrored')` changes only the camera preview. It can be called
+before camera startup, while the camera is running, or after it has stopped. The default remains
+`mirrored`, and the recognition input keeps the Teachable Machine runtime's existing horizontal
+flip regardless of the preview setting.
 
 Teachable Machine Pose 0.8.3 exposes the classifier as `CustomPoseNet.model` and PoseNet as
 `CustomPoseNet.posenetModel`, while its top-level `dispose()` releases PoseNet only. The composition

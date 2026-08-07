@@ -2,6 +2,7 @@ import {
   createTMPoseComposition,
   type AccumulatedPoseChangedEventV1,
   type PoseModelRegistration,
+  type PreviewMirroring,
   type TMPoseComposition,
   type TMPoseCompositionRuntime
 } from '@kubohiroya/turbowarp-tmpose/composition';
@@ -9,6 +10,8 @@ import {
 declare const runtime: TMPoseCompositionRuntime;
 
 const composition: TMPoseComposition = createTMPoseComposition({runtime});
+const previewMirroring: PreviewMirroring = 'unmirrored';
+composition.setPreviewMirroring(previewMirroring);
 const registration: Promise<PoseModelRegistration> = composition.registerPoseModel({
   name: 'RescuePose',
   files: [

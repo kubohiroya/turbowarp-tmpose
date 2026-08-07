@@ -786,6 +786,15 @@ function validateAccumulatedPoseConfiguration(value) {
   }
   return { accumulationPerSecond, decayPerSecond, scoreThreshold };
 }
+function validatePreviewMirroring(value) {
+  if (value !== "mirrored" && value !== "unmirrored") {
+    throw compositionError(
+      "TMPOSE-COMPOSITION-010",
+      "Preview mirroring must be either mirrored or unmirrored."
+    );
+  }
+  return value;
+}
 function validateFiles(input, createFile) {
   if (!Array.isArray(input.files) || input.files.length !== 3) {
     throw compositionError(
@@ -1118,6 +1127,10 @@ function createTMPoseComposition(options) {
     },
     getActivePoseModelName() {
       return activeName;
+    },
+    setPreviewMirroring(mode) {
+      ensureActive();
+      extension.setPreviewMirroring({ MIRRORING: validatePreviewMirroring(mode) });
     },
     startCamera() {
       ensureActive();
