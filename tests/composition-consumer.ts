@@ -1,6 +1,9 @@
 import {
   createTMPoseComposition,
   type AccumulatedPoseChangedEventV1,
+  type CameraDevice,
+  type CameraPreference,
+  type CameraSelection,
   type PoseModelRegistration,
   type PreviewMirroring,
   type TMPoseComposition,
@@ -12,6 +15,14 @@ declare const runtime: TMPoseCompositionRuntime;
 const composition: TMPoseComposition = createTMPoseComposition({runtime});
 const previewMirroring: PreviewMirroring = 'unmirrored';
 composition.setPreviewMirroring(previewMirroring);
+const cameraPreference: CameraPreference = 'front';
+const cameraSelection: CameraSelection = {deviceId: 'session-only-device-id'};
+const cameraDevices: Promise<ReadonlyArray<Readonly<CameraDevice>>> =
+  composition.listCameraDevices();
+void composition.selectCamera(cameraPreference);
+void composition.selectCamera(cameraSelection);
+const currentCameraSelection: CameraSelection = composition.getCameraSelection();
+const activeCamera: Readonly<CameraDevice> | null = composition.getActiveCamera();
 const registration: Promise<PoseModelRegistration> = composition.registerPoseModel({
   name: 'RescuePose',
   files: [
@@ -33,3 +44,6 @@ const unsubscribe: () => void = composition.subscribeAccumulatedPose(
 unsubscribe();
 
 void registration;
+void cameraDevices;
+void currentCameraSelection;
+void activeCamera;

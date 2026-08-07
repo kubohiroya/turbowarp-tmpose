@@ -22,6 +22,14 @@ export interface AccumulatedPoseConfiguration {
     scoreThreshold: number;
 }
 export type PreviewMirroring = 'mirrored' | 'unmirrored';
+export type CameraPreference = 'default' | 'front' | 'back';
+export type CameraSelection = CameraPreference | Readonly<{
+    deviceId: string;
+}>;
+export interface CameraDevice {
+    readonly deviceId: string;
+    readonly label: string;
+}
 export type AccumulatedPoseListener = (event: Readonly<AccumulatedPoseChangedEventV1>) => void;
 export interface TMPoseComposition {
     registerPoseModel(input: PoseModelRegistrationInput): Promise<PoseModelRegistration>;
@@ -31,6 +39,10 @@ export interface TMPoseComposition {
     isPoseModelRegistered(name: unknown): boolean;
     getActivePoseModelName(): string | null;
     setPreviewMirroring(mode: PreviewMirroring): void;
+    listCameraDevices(): Promise<ReadonlyArray<Readonly<CameraDevice>>>;
+    selectCamera(selection: CameraSelection): Promise<void>;
+    getCameraSelection(): CameraSelection;
+    getActiveCamera(): Readonly<CameraDevice> | null;
     startCamera(): Promise<void>;
     stopCamera(): void;
     isCameraRunning(): boolean;

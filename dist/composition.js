@@ -73,14 +73,17 @@ function normalizePreviewMirroring(value) {
 }
 function normalizeCameraSelection(value) {
   const selection = String(value ?? "default").trim();
-  if (!selection) return "default";
-  return CAMERA_SELECTION_ALIASES[selection.toLowerCase()] ?? selection;
+  const normalized = CAMERA_SELECTION_ALIASES[selection.toLowerCase() || "default"];
+  if (normalized === "default" || normalized === "front" || normalized === "back") {
+    return { kind: "preference", value: normalized };
+  }
+  return { kind: "device", value: selection };
 }
 function cameraConstraints(selection) {
-  if (selection === "front") return { facingMode: { ideal: "user" } };
-  if (selection === "back") return { facingMode: { ideal: "environment" } };
-  if (selection === "default") return void 0;
-  return { deviceId: { exact: selection } };
+  if (selection.kind === "device") return { deviceId: { exact: selection.value } };
+  if (selection.value === "front") return { facingMode: { ideal: "user" } };
+  if (selection.value === "back") return { facingMode: { ideal: "environment" } };
+  return void 0;
 }
 function scriptLoadedFor(src) {
   if (src === TFJS_URL) return typeof globalThis.tf !== "undefined";
@@ -146,6 +149,7 @@ class TMPoseExtension {
     this.webcam = null;
     this.cameraRunning = false;
     this.cameraSelection = "default";
+    this.cameraSelectionIsDeviceId = false;
     this.cameraDevices = [];
     this.activeCameraDeviceId = "";
     this.activeCameraDeviceName = "";
@@ -269,7 +273,7 @@ class TMPoseExtension {
       const startedAt = performance.now();
       await this.ensureLibrariesLoaded();
       this.webcam = new this.tmPoseRuntime.Webcam(320, 240, true);
-      const constraints = cameraConstraints(this.cameraSelection);
+      const constraints = cameraConstraints(this.resolvedCameraSelection());
       if (constraints) await this.webcam.setup(constraints);
       else await this.webcam.setup();
       await this.webcam.play();
@@ -341,20 +345,35 @@ class TMPoseExtension {
   }
   setCameraSelection(args) {
     const selection = normalizeCameraSelection(args.CAMERA);
+    return this.enqueueCameraSelection(selection);
+  }
+  setCameraDeviceId(deviceId) {
+    if (typeof deviceId !== "string" || deviceId.trim().length === 0) {
+      return Promise.reject(new Error("TMPose: Camera device ID must be a non-empty string."));
+    }
+    return this.enqueueCameraSelection({ kind: "device", value: deviceId });
+  }
+  resolvedCameraSelection() {
+    return this.cameraSelectionIsDeviceId ? { kind: "device", value: this.cameraSelection } : { kind: "preference", value: this.cameraSelection };
+  }
+  enqueueCameraSelection(selection) {
     const operation = this.cameraSelectionQueue.then(() => this.applyCameraSelection(selection));
     this.cameraSelectionQueue = operation.catch(() => void 0);
     return operation;
   }
   async applyCameraSelection(selection) {
     const previousSelection = this.cameraSelection;
+    const previousSelectionIsDeviceId = this.cameraSelectionIsDeviceId;
     const wasRunning = this.cameraRunning;
-    this.cameraSelection = selection;
+    this.cameraSelection = selection.value;
+    this.cameraSelectionIsDeviceId = selection.kind === "device";
     if (!wasRunning) return;
     this.cleanupCameraResources();
     try {
       await this.startCamera();
     } catch (switchError) {
       this.cameraSelection = previousSelection;
+      this.cameraSelectionIsDeviceId = previousSelectionIsDeviceId;
       try {
         await this.startCamera();
       } catch (rollbackError) {
@@ -373,7 +392,7 @@ class TMPoseExtension {
     const stream = this.webcam?.webcam?.srcObject;
     const videoTrack = stream?.getVideoTracks?.()[0] ?? stream?.getTracks?.().find((track) => track.kind === "video" || track.kind === void 0);
     const settings = videoTrack?.getSettings?.() ?? {};
-    const selectedDeviceId = ["default", "front", "back"].includes(this.cameraSelection) ? "" : this.cameraSelection;
+    const selectedDeviceId = this.cameraSelectionIsDeviceId ? this.cameraSelection : "";
     this.activeCameraDeviceId = String(settings.deviceId || selectedDeviceId);
     const device = this.cameraDevices.find((candidate) => candidate.deviceId === this.activeCameraDeviceId);
     this.activeCameraDeviceName = String(videoTrack?.label || device?.label || "");
@@ -924,6 +943,40 @@ function validatePreviewMirroring(value) {
   }
   return value;
 }
+function validateCameraSelection(value) {
+  if (value === "default" || value === "front" || value === "back") return value;
+  if (!isRecord(value) || Object.keys(value).length !== 1 || !Object.hasOwn(value, "deviceId") || typeof value.deviceId !== "string" || value.deviceId.trim().length === 0) {
+    throw compositionError(
+      "TMPOSE-COMPOSITION-011",
+      "Camera selection must be default, front, back, or an object with one non-empty deviceId."
+    );
+  }
+  return Object.freeze({ deviceId: value.deviceId });
+}
+function copyCameraSelection(selection) {
+  return typeof selection === "string" ? selection : Object.freeze({ deviceId: selection.deviceId });
+}
+function canonicalCameraDevices(value) {
+  if (!Array.isArray(value)) {
+    throw compositionError(
+      "TMPOSE-COMPOSITION-012",
+      "Camera device enumeration returned an invalid result."
+    );
+  }
+  const devices = [];
+  const seenDeviceIds = /* @__PURE__ */ new Set();
+  for (const candidate of value) {
+    if (!isRecord(candidate) || typeof candidate.deviceId !== "string") continue;
+    const deviceId = candidate.deviceId;
+    if (deviceId.trim().length === 0 || seenDeviceIds.has(deviceId)) continue;
+    seenDeviceIds.add(deviceId);
+    devices.push(Object.freeze({
+      deviceId,
+      label: typeof candidate.label === "string" ? candidate.label : ""
+    }));
+  }
+  return Object.freeze(devices);
+}
 function validateFiles(input, createFile) {
   if (!Array.isArray(input.files) || input.files.length !== 3) {
     throw compositionError(
@@ -994,6 +1047,8 @@ function createTMPoseComposition(options) {
   const activeModelDisposals = /* @__PURE__ */ new Set();
   const resourceDisposals = /* @__PURE__ */ new WeakMap();
   let activeName = null;
+  let cameraSelection = "default";
+  let cameraSelectionQueue = Promise.resolve();
   let released = false;
   let releasePromise = null;
   function ensureActive() {
@@ -1212,6 +1267,8 @@ function createTMPoseComposition(options) {
       released = true;
       accumulatedPoseListeners.clear();
       releasePromise = (async () => {
+        await cameraSelectionQueue;
+        cameraSelection = "default";
         for (const name of versions.keys()) nextVersion(name);
         const startedDisposals = [...activeModelDisposals];
         const pending = [...pendingRegistrations.values()].flatMap((operations) => [
@@ -1260,6 +1317,57 @@ function createTMPoseComposition(options) {
     setPreviewMirroring(mode) {
       ensureActive();
       extension.setPreviewMirroring({ MIRRORING: validatePreviewMirroring(mode) });
+    },
+    async listCameraDevices() {
+      ensureActive();
+      try {
+        const devices = await extension.refreshCameraDevices();
+        ensureActive();
+        return canonicalCameraDevices(devices);
+      } catch (error) {
+        if (released) ensureActive();
+        const wrapped = compositionError(
+          "TMPOSE-COMPOSITION-012",
+          "Camera device enumeration is unavailable."
+        );
+        Object.defineProperty(wrapped, "cause", { value: error });
+        throw wrapped;
+      }
+    },
+    selectCamera(selection) {
+      let canonicalSelection;
+      try {
+        ensureActive();
+        canonicalSelection = validateCameraSelection(selection);
+      } catch (error) {
+        return Promise.reject(error);
+      }
+      const operation = cameraSelectionQueue.then(async () => {
+        ensureActive();
+        if (typeof canonicalSelection === "string") {
+          await extension.setCameraSelection({ CAMERA: canonicalSelection });
+        } else {
+          await extension.setCameraDeviceId(canonicalSelection.deviceId);
+        }
+        ensureActive();
+        cameraSelection = canonicalSelection;
+      });
+      cameraSelectionQueue = operation.catch(() => void 0);
+      return operation;
+    },
+    getCameraSelection() {
+      ensureActive();
+      return copyCameraSelection(cameraSelection);
+    },
+    getActiveCamera() {
+      ensureActive();
+      if (!extension.isCameraRunning()) return null;
+      const deviceId = String(extension.cameraDeviceIdReporter());
+      if (deviceId.trim().length === 0) return null;
+      return Object.freeze({
+        deviceId,
+        label: String(extension.cameraDeviceNameReporter())
+      });
     },
     startCamera() {
       ensureActive();

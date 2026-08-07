@@ -67,11 +67,13 @@ function element(tagName = 'DIV') {
 let registerExtension: ReturnType<typeof vi.fn>;
 let appendScript: ReturnType<typeof vi.fn>;
 let animationCallbacks: Array<() => void>;
+let enumerateDevices: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   registerExtension = vi.fn();
   appendScript = vi.fn();
   animationCallbacks = [];
+  enumerateDevices = vi.fn(async () => []);
   vi.stubGlobal('Scratch', {
     extensions: {unsandboxed: true, register: registerExtension}
   });
@@ -96,6 +98,7 @@ beforeEach(() => {
     animationCallbacks.push(callback);
     return animationCallbacks.length;
   }));
+  vi.stubGlobal('navigator', {mediaDevices: {enumerateDevices}});
 });
 
 afterEach(() => vi.unstubAllGlobals());
@@ -432,6 +435,282 @@ describe('TMPose composition API', () => {
     );
     await composition.releaseAll();
     expect(() => composition.setPreviewMirroring('mirrored')).toThrow(
+      expect.objectContaining({code: 'TMPOSE-COMPOSITION-007'})
+    );
+  });
+
+  it('returns canonical immutable camera devices from every fresh enumeration', async () => {
+    const firstEnumeration = [
+      {kind: 'audioinput', deviceId: 'microphone', label: 'Microphone'},
+      {kind: 'videoinput', deviceId: 'first-id', label: ''},
+      {kind: 'videoinput', deviceId: 'first-id', label: 'Duplicate'},
+      {kind: 'videoinput', deviceId: '', label: 'No ID'},
+      {kind: 'videoinput', deviceId: 'second-id', label: 'External Camera'}
+    ];
+    enumerateDevices
+      .mockResolvedValueOnce(firstEnumeration)
+      .mockResolvedValueOnce([
+        {kind: 'videoinput', deviceId: 'third-id', label: 'Third Camera'}
+      ]);
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: class {}, loadFromFiles: vi.fn()},
+      createFile
+    });
+
+    const first = await composition.listCameraDevices();
+    expect(first).toEqual([
+      {deviceId: 'first-id', label: ''},
+      {deviceId: 'second-id', label: 'External Camera'}
+    ]);
+    expect(Object.isFrozen(first)).toBe(true);
+    expect(first.every((device) => Object.isFrozen(device))).toBe(true);
+    firstEnumeration[1]!.label = 'Changed externally';
+    expect(first[0]!.label).toBe('');
+
+    await expect(composition.listCameraDevices()).resolves.toEqual([
+      {deviceId: 'third-id', label: 'Third Camera'}
+    ]);
+    expect(enumerateDevices).toHaveBeenCalledTimes(2);
+    await composition.releaseAll();
+  });
+
+  it('validates camera selections and reports unavailable enumeration deterministically', async () => {
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: class {}, loadFromFiles: vi.fn()},
+      createFile
+    });
+    const invalidSelections = [
+      'user',
+      '',
+      {},
+      {deviceId: ''},
+      {deviceId: 'camera-id', extra: true},
+      {deviceId: 1}
+    ];
+    for (const selection of invalidSelections) {
+      await expect(composition.selectCamera(selection as never)).rejects.toMatchObject({
+        code: 'TMPOSE-COMPOSITION-011'
+      });
+    }
+
+    vi.stubGlobal('navigator', {});
+    await expect(composition.listCameraDevices()).rejects.toMatchObject({
+      code: 'TMPOSE-COMPOSITION-012'
+    });
+    await composition.releaseAll();
+  });
+
+  it('distinguishes an explicit device ID from a same-named camera preference', async () => {
+    const stage = element();
+    const canvas = element('CANVAS');
+    const stopTrack = vi.fn();
+    const track = {
+      kind: 'video',
+      label: 'Literal Default Camera',
+      getSettings: () => ({deviceId: 'default'}),
+      stop: stopTrack
+    };
+    const webcam = {
+      canvas,
+      webcam: {srcObject: {getVideoTracks: () => [track], getTracks: () => [track]}},
+      setup: vi.fn(async () => undefined),
+      play: vi.fn(async () => undefined),
+      update: vi.fn()
+    };
+    const Webcam = vi.fn(function () {
+      return webcam;
+    });
+    vi.mocked(document.querySelector).mockReturnValue(stage);
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: Webcam as never, loadFromFiles: vi.fn()},
+      createFile
+    });
+
+    await composition.selectCamera({deviceId: 'default'});
+    const firstSelection = composition.getCameraSelection();
+    const secondSelection = composition.getCameraSelection();
+    expect(firstSelection).toEqual({deviceId: 'default'});
+    expect(Object.isFrozen(firstSelection)).toBe(true);
+    expect(firstSelection).not.toBe(secondSelection);
+    expect(composition.getActiveCamera()).toBeNull();
+
+    await composition.startCamera();
+    expect(webcam.setup).toHaveBeenCalledWith({deviceId: {exact: 'default'}});
+    const activeCamera = composition.getActiveCamera();
+    expect(activeCamera).toEqual({deviceId: 'default', label: 'Literal Default Camera'});
+    expect(Object.isFrozen(activeCamera)).toBe(true);
+    await composition.releaseAll();
+    expect(stopTrack).toHaveBeenCalledOnce();
+  });
+
+  it('switches cameras during recognition without changing model or preview mirroring', async () => {
+    const stage = element();
+    const createWebcam = (deviceId: string, label: string, stop: ReturnType<typeof vi.fn>) => {
+      const track = {kind: 'video', label, getSettings: () => ({deviceId}), stop};
+      return {
+        canvas: element('CANVAS'),
+        webcam: {srcObject: {getVideoTracks: () => [track], getTracks: () => [track]}},
+        setup: vi.fn(async () => undefined),
+        play: vi.fn(async () => undefined),
+        update: vi.fn()
+      };
+    };
+    const firstStop = vi.fn();
+    const secondStop = vi.fn();
+    const firstWebcam = createWebcam('first-id', 'First Camera', firstStop);
+    const secondWebcam = createWebcam('second-id', 'Second Camera', secondStop);
+    const webcams = [firstWebcam, secondWebcam];
+    const Webcam = vi.fn(function () {
+      return webcams.shift();
+    });
+    enumerateDevices.mockResolvedValue([
+      {kind: 'videoinput', deviceId: 'first-id', label: 'First Camera'},
+      {kind: 'videoinput', deviceId: 'second-id', label: 'Second Camera'}
+    ]);
+    vi.mocked(document.querySelector).mockReturnValue(stage);
+    const activeModel = model();
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: Webcam as never, loadFromFiles: vi.fn(async () => activeModel)},
+      createFile
+    });
+    await composition.registerPoseModel({name: 'Active', files: files()});
+    composition.activatePoseModel('Active');
+    composition.setPreviewMirroring('unmirrored');
+    await composition.startRecognition();
+
+    await composition.selectCamera({deviceId: 'second-id'});
+
+    expect(firstStop).toHaveBeenCalledOnce();
+    expect(secondWebcam.setup).toHaveBeenCalledWith({deviceId: {exact: 'second-id'}});
+    expect(secondWebcam.canvas.style.transform).toBe('scaleX(-1)');
+    expect(composition.isRecognizing()).toBe(true);
+    expect(composition.getActivePoseModelName()).toBe('Active');
+    expect(composition.getActiveCamera()).toEqual({
+      deviceId: 'second-id',
+      label: 'Second Camera'
+    });
+    await composition.releaseAll();
+    expect(secondStop).toHaveBeenCalledOnce();
+  });
+
+  it('serializes camera selections and keeps the latest successful state after rollback', async () => {
+    const stage = element();
+    const pendingSetup = deferred<void>();
+    const createWebcam = (
+      deviceId: string,
+      setup: () => Promise<void> = async () => undefined
+    ) => {
+      const track = {
+        kind: 'video',
+        label: deviceId,
+        getSettings: () => ({deviceId}),
+        stop: vi.fn()
+      };
+      return {
+        canvas: element('CANVAS'),
+        webcam: {srcObject: {getVideoTracks: () => [track], getTracks: () => [track]}},
+        setup: vi.fn(setup),
+        play: vi.fn(async () => undefined),
+        update: vi.fn()
+      };
+    };
+    const initial = createWebcam('initial-id');
+    const selected = createWebcam('selected-id', () => pendingSetup.promise);
+    const failed = createWebcam('failed-id', async () => {
+      throw new Error('camera unavailable');
+    });
+    const rollback = createWebcam('selected-id');
+    const webcams = [initial, selected, failed, rollback];
+    const Webcam = vi.fn(function () {
+      return webcams.shift();
+    });
+    vi.mocked(document.querySelector).mockReturnValue(stage);
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: Webcam as never, loadFromFiles: vi.fn()},
+      createFile
+    });
+    await composition.startCamera();
+
+    const first = composition.selectCamera({deviceId: 'selected-id'});
+    const second = composition.selectCamera({deviceId: 'missing-id'});
+    await vi.waitFor(() => expect(selected.setup).toHaveBeenCalledOnce());
+    expect(Webcam).toHaveBeenCalledTimes(2);
+    expect(failed.setup).not.toHaveBeenCalled();
+
+    pendingSetup.resolve(undefined);
+    await expect(first).resolves.toBeUndefined();
+    await expect(second).rejects.toThrow('camera unavailable');
+    expect(failed.setup).toHaveBeenCalledWith({deviceId: {exact: 'missing-id'}});
+    expect(rollback.setup).toHaveBeenCalledWith({deviceId: {exact: 'selected-id'}});
+    expect(composition.getCameraSelection()).toEqual({deviceId: 'selected-id'});
+    expect(composition.getActiveCamera()).toEqual({
+      deviceId: 'selected-id',
+      label: 'selected-id'
+    });
+    await composition.releaseAll();
+  });
+
+  it('fails pending camera selections closed and stops the final stream during release', async () => {
+    const stage = element();
+    const pendingSetup = deferred<void>();
+    const initialTrack = {
+      kind: 'video', label: 'Initial', getSettings: () => ({deviceId: 'initial-id'}), stop: vi.fn()
+    };
+    const selectedTrack = {
+      kind: 'video', label: 'Selected', getSettings: () => ({deviceId: 'selected-id'}), stop: vi.fn()
+    };
+    const initial = {
+      canvas: element('CANVAS'),
+      webcam: {srcObject: {getVideoTracks: () => [initialTrack], getTracks: () => [initialTrack]}},
+      setup: vi.fn(async () => undefined), play: vi.fn(async () => undefined), update: vi.fn()
+    };
+    const selected = {
+      canvas: element('CANVAS'),
+      webcam: {srcObject: {getVideoTracks: () => [selectedTrack], getTracks: () => [selectedTrack]}},
+      setup: vi.fn(() => pendingSetup.promise), play: vi.fn(async () => undefined), update: vi.fn()
+    };
+    const webcams = [initial, selected];
+    const Webcam = vi.fn(function () {
+      return webcams.shift();
+    });
+    vi.mocked(document.querySelector).mockReturnValue(stage);
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: Webcam as never, loadFromFiles: vi.fn()},
+      createFile
+    });
+    await composition.startCamera();
+
+    const selecting = composition.selectCamera({deviceId: 'selected-id'});
+    const queued = composition.selectCamera('back');
+    const selectingResult = selecting.catch((error) => error);
+    const queuedResult = queued.catch((error) => error);
+    await vi.waitFor(() => expect(selected.setup).toHaveBeenCalledOnce());
+    const releasing = composition.releaseAll();
+    let releaseCompleted = false;
+    void releasing.then(() => {
+      releaseCompleted = true;
+    });
+    await Promise.resolve();
+    expect(releaseCompleted).toBe(false);
+
+    pendingSetup.resolve(undefined);
+    expect(await selectingResult).toMatchObject({code: 'TMPOSE-COMPOSITION-007'});
+    expect(await queuedResult).toMatchObject({code: 'TMPOSE-COMPOSITION-007'});
+    await releasing;
+    expect(Webcam).toHaveBeenCalledTimes(2);
+    expect(initialTrack.stop).toHaveBeenCalledOnce();
+    expect(selectedTrack.stop).toHaveBeenCalledOnce();
+    expect(composition.isCameraRunning()).toBe(false);
+    await expect(composition.selectCamera('front')).rejects.toMatchObject({
+      code: 'TMPOSE-COMPOSITION-007'
+    });
+    await expect(composition.listCameraDevices()).rejects.toMatchObject({
+      code: 'TMPOSE-COMPOSITION-007'
+    });
+    expect(() => composition.getCameraSelection()).toThrow(
+      expect.objectContaining({code: 'TMPOSE-COMPOSITION-007'})
+    );
+    expect(() => composition.getActiveCamera()).toThrow(
       expect.objectContaining({code: 'TMPOSE-COMPOSITION-007'})
     );
   });

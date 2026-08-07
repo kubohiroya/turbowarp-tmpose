@@ -78,6 +78,12 @@ const CAMERA_SELECTION_ALIASES: Record<string, string> = {
   '背面カメラ': 'back'
 };
 
+type CameraPreference = 'default' | 'front' | 'back';
+
+type ResolvedCameraSelection =
+  | {kind: 'preference'; value: CameraPreference}
+  | {kind: 'device'; value: string};
+
 const loadingPromises = new Map<string, Promise<void>>();
 
 function normalizePosition(value: unknown): string {
@@ -88,17 +94,20 @@ function normalizePreviewMirroring(value: unknown): boolean {
   return PREVIEW_MIRRORING_ALIASES[String(value ?? 'mirrored').trim().toLowerCase()] ?? true;
 }
 
-function normalizeCameraSelection(value: unknown): string {
+function normalizeCameraSelection(value: unknown): ResolvedCameraSelection {
   const selection = String(value ?? 'default').trim();
-  if (!selection) return 'default';
-  return CAMERA_SELECTION_ALIASES[selection.toLowerCase()] ?? selection;
+  const normalized = CAMERA_SELECTION_ALIASES[selection.toLowerCase() || 'default'];
+  if (normalized === 'default' || normalized === 'front' || normalized === 'back') {
+    return {kind: 'preference', value: normalized};
+  }
+  return {kind: 'device', value: selection};
 }
 
-function cameraConstraints(selection: string): MediaTrackConstraints | undefined {
-  if (selection === 'front') return {facingMode: {ideal: 'user'}};
-  if (selection === 'back') return {facingMode: {ideal: 'environment'}};
-  if (selection === 'default') return undefined;
-  return {deviceId: {exact: selection}};
+function cameraConstraints(selection: ResolvedCameraSelection): MediaTrackConstraints | undefined {
+  if (selection.kind === 'device') return {deviceId: {exact: selection.value}};
+  if (selection.value === 'front') return {facingMode: {ideal: 'user'}};
+  if (selection.value === 'back') return {facingMode: {ideal: 'environment'}};
+  return undefined;
 }
 
 function scriptLoadedFor(src: string): boolean {
@@ -181,6 +190,7 @@ export class TMPoseExtension {
     this.webcam = null;
     this.cameraRunning = false;
     this.cameraSelection = 'default';
+    this.cameraSelectionIsDeviceId = false;
     this.cameraDevices = [];
     this.activeCameraDeviceId = '';
     this.activeCameraDeviceName = '';
@@ -308,7 +318,7 @@ export class TMPoseExtension {
       const startedAt = performance.now();
       await this.ensureLibrariesLoaded();
       this.webcam = new this.tmPoseRuntime.Webcam(320, 240, true);
-      const constraints = cameraConstraints(this.cameraSelection);
+      const constraints = cameraConstraints(this.resolvedCameraSelection());
       if (constraints) await this.webcam.setup(constraints);
       else await this.webcam.setup();
       await this.webcam.play();
@@ -387,15 +397,34 @@ export class TMPoseExtension {
 
   setCameraSelection(args) {
     const selection = normalizeCameraSelection(args.CAMERA);
+    return this.enqueueCameraSelection(selection);
+  }
+
+  setCameraDeviceId(deviceId) {
+    if (typeof deviceId !== 'string' || deviceId.trim().length === 0) {
+      return Promise.reject(new Error('TMPose: Camera device ID must be a non-empty string.'));
+    }
+    return this.enqueueCameraSelection({kind: 'device', value: deviceId});
+  }
+
+  private resolvedCameraSelection(): ResolvedCameraSelection {
+    return this.cameraSelectionIsDeviceId
+      ? {kind: 'device', value: this.cameraSelection}
+      : {kind: 'preference', value: this.cameraSelection as CameraPreference};
+  }
+
+  private enqueueCameraSelection(selection: ResolvedCameraSelection) {
     const operation = this.cameraSelectionQueue.then(() => this.applyCameraSelection(selection));
     this.cameraSelectionQueue = operation.catch(() => undefined);
     return operation;
   }
 
-  async applyCameraSelection(selection) {
+  private async applyCameraSelection(selection: ResolvedCameraSelection) {
     const previousSelection = this.cameraSelection;
+    const previousSelectionIsDeviceId = this.cameraSelectionIsDeviceId;
     const wasRunning = this.cameraRunning;
-    this.cameraSelection = selection;
+    this.cameraSelection = selection.value;
+    this.cameraSelectionIsDeviceId = selection.kind === 'device';
     if (!wasRunning) return;
 
     this.cleanupCameraResources();
@@ -403,6 +432,7 @@ export class TMPoseExtension {
       await this.startCamera();
     } catch (switchError) {
       this.cameraSelection = previousSelection;
+      this.cameraSelectionIsDeviceId = previousSelectionIsDeviceId;
       try {
         await this.startCamera();
       } catch (rollbackError) {
@@ -423,9 +453,7 @@ export class TMPoseExtension {
     const videoTrack = stream?.getVideoTracks?.()[0] ??
       stream?.getTracks?.().find((track) => track.kind === 'video' || track.kind === undefined);
     const settings = videoTrack?.getSettings?.() ?? {};
-    const selectedDeviceId = ['default', 'front', 'back'].includes(this.cameraSelection)
-      ? ''
-      : this.cameraSelection;
+    const selectedDeviceId = this.cameraSelectionIsDeviceId ? this.cameraSelection : '';
     this.activeCameraDeviceId = String(settings.deviceId || selectedDeviceId);
     const device = this.cameraDevices.find((candidate) => candidate.deviceId === this.activeCameraDeviceId);
     this.activeCameraDeviceName = String(videoTrack?.label || device?.label || '');
