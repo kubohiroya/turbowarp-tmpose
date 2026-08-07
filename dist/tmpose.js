@@ -115,6 +115,7 @@
       this.predicting = false;
       this.loopStarted = false;
       this.loopGeneration = 0;
+      this.activeModelOperations = /* @__PURE__ */ new Map();
       this.currentPoseName = "";
       this.score = 0;
       this.predictions = {};
@@ -467,6 +468,28 @@
       const generation = ++this.loopGeneration;
       void this.loop(generation);
     }
+    trackPreparedModelOperation(model, operation) {
+      let active = this.activeModelOperations.get(model);
+      if (!active) {
+        active = /* @__PURE__ */ new Set();
+        this.activeModelOperations.set(model, active);
+      }
+      active.add(operation);
+      void operation.then(
+        () => {
+          active.delete(operation);
+          if (active.size === 0) this.activeModelOperations.delete(model);
+        },
+        () => {
+          active.delete(operation);
+          if (active.size === 0) this.activeModelOperations.delete(model);
+        }
+      );
+      return operation;
+    }
+    async waitForPreparedModelIdle(model) {
+      await Promise.allSettled([...this.activeModelOperations.get(model) ?? []]);
+    }
     async loop(generation = this.loopGeneration) {
       if (generation !== this.loopGeneration || !this.cameraRunning || !this.webcam) {
         if (generation === this.loopGeneration) this.loopStarted = false;
@@ -475,22 +498,30 @@
       try {
         this.webcam.update();
         if (this.predicting && this.model) {
+          const model = this.model;
           const first = this.firstPredictMs === 0;
           const startedAt = first ? performance.now() : 0;
-          const estimate = await this.model.estimatePose(this.webcam.canvas);
-          const prediction = await this.model.predict(estimate.posenetOutput);
-          if (generation !== this.loopGeneration || !this.cameraRunning) return;
-          if (first) this.firstPredictMs = Math.round(performance.now() - startedAt);
-          let best = { className: "", probability: 0 };
-          this.predictions = {};
-          for (const result of prediction) {
-            this.predictions[result.className] = result.probability;
-            if (result.probability > best.probability) best = result;
-          }
-          this.currentPoseName = best.className;
-          this.score = best.probability;
-          if (this.featureFlags.temporalPoseScoring) {
-            this.updateAccumulatedPose(prediction);
+          const prediction = await this.trackPreparedModelOperation(
+            model,
+            (async () => {
+              const estimate = await model.estimatePose(this.webcam.canvas);
+              return model.predict(estimate.posenetOutput);
+            })()
+          );
+          if (generation !== this.loopGeneration || !this.cameraRunning || !this.predicting || this.model !== model) {
+          } else {
+            if (first) this.firstPredictMs = Math.round(performance.now() - startedAt);
+            let best = { className: "", probability: 0 };
+            this.predictions = {};
+            for (const result of prediction) {
+              this.predictions[result.className] = result.probability;
+              if (result.probability > best.probability) best = result;
+            }
+            this.currentPoseName = best.className;
+            this.score = best.probability;
+            if (this.featureFlags.temporalPoseScoring) {
+              this.updateAccumulatedPose(prediction);
+            }
           }
         }
       } catch (error) {

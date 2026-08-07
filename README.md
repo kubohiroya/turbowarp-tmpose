@@ -94,6 +94,21 @@ model with `releasePoseModel(name)` or release the complete instance with `relea
 `releaseAll()` also removes accumulated-pose listeners. `subscribeAccumulatedPose()` returns an
 idempotent unsubscribe function.
 
+Teachable Machine Pose 0.8.3 exposes the classifier as `CustomPoseNet.model` and PoseNet as
+`CustomPoseNet.posenetModel`, while its top-level `dispose()` releases PoseNet only. The composition
+therefore disconnects an active model from recognition first and disposes those two public
+resources separately and exactly once; it does not call the incomplete top-level disposer for this
+official shape. A custom injected runtime without those fields can retain the legacy single
+top-level `dispose()` contract. A runtime that exposes only part of the official shape is rejected
+with `TMPOSE-COMPOSITION-009`, after every safely identifiable resource has been attempted.
+
+Model, weights, and metadata `File` objects exist only for the pending `loadFromFiles()` call and
+are not stored in the named registry. `releasePoseModel()` and `releaseAll()` invalidate and wait for
+matching pending registrations, so their promises do not resolve before a late loaded model has
+been disposed. Switching to an already prepared model after stopping recognition keeps the camera
+stream alive; releasing the old, no-longer-active model does not request camera permission again.
+Releasing the current model with no prepared successor stops recognition and the camera.
+
 The accumulated-pose API chooses one candidate for an async-input consumer. It is deliberately
 separate from an Actor action that waits for multiple pose steps in sequence: a sequence consumer
 should read `confidenceOf(name)` and own its per-step progress instead of using or resetting this
