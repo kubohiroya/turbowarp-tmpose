@@ -823,6 +823,7 @@ function createTMPoseComposition(options) {
   const versions = /* @__PURE__ */ new Map();
   const pendingRegistrations = /* @__PURE__ */ new Map();
   const modelDisposals = /* @__PURE__ */ new WeakMap();
+  const activeModelDisposals = /* @__PURE__ */ new Set();
   const resourceDisposals = /* @__PURE__ */ new WeakMap();
   let activeName = null;
   let released = false;
@@ -862,6 +863,12 @@ function createTMPoseComposition(options) {
       if (result.status === "rejected" && result.reason?.name !== "AbortError") {
         errors.push(result.reason);
       }
+    }
+  }
+  async function waitForModelDisposals(operations, errors) {
+    const results = await Promise.allSettled(operations);
+    for (const result of results) {
+      if (result.status === "rejected") errors.push(result.reason);
     }
   }
   async function disposeResource(resource) {
@@ -920,6 +927,11 @@ function createTMPoseComposition(options) {
       }
     });
     modelDisposals.set(model, operation);
+    activeModelDisposals.add(operation);
+    void operation.then(
+      () => activeModelDisposals.delete(operation),
+      () => activeModelDisposals.delete(operation)
+    );
     return operation;
   }
   function stopActiveModel(model) {
@@ -1033,6 +1045,7 @@ function createTMPoseComposition(options) {
       accumulatedPoseListeners.clear();
       releasePromise = (async () => {
         for (const name of versions.keys()) nextVersion(name);
+        const startedDisposals = [...activeModelDisposals];
         const pending = [...pendingRegistrations.values()].flatMap((operations) => [
           ...operations
         ]);
@@ -1058,6 +1071,7 @@ function createTMPoseComposition(options) {
           }
         }
         await waitForRegistrations(pending, errors);
+        await waitForModelDisposals(startedDisposals, errors);
         try {
           extension.dispose();
         } catch (error) {

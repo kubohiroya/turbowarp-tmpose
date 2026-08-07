@@ -262,6 +262,41 @@ describe('TMPose composition API', () => {
     expect(releaseCompleted).toBe(true);
   });
 
+  it('waits for a concurrent per-model release before releaseAll completes', async () => {
+    const classifierDispose = deferred<void>();
+    const loaded = model(['concurrent']);
+    loaded.model.dispose.mockImplementation(
+      (() => classifierDispose.promise) as unknown as () => void
+    );
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: class {}, loadFromFiles: vi.fn(async () => loaded)},
+      createFile
+    });
+    await composition.registerPoseModel({name: 'Concurrent', files: files()});
+
+    let modelReleaseCompleted = false;
+    let allReleaseCompleted = false;
+    const modelRelease = composition.releasePoseModel('Concurrent').then(() => {
+      modelReleaseCompleted = true;
+    });
+    const allRelease = composition.releaseAll().then(() => {
+      allReleaseCompleted = true;
+    });
+
+    await vi.waitFor(() => expect(loaded.model.dispose).toHaveBeenCalledOnce());
+    expect(modelReleaseCompleted).toBe(false);
+    expect(allReleaseCompleted).toBe(false);
+    expect(loaded.posenetModel.dispose).not.toHaveBeenCalled();
+
+    classifierDispose.resolve(undefined);
+    await Promise.all([modelRelease, allRelease]);
+    expect(modelReleaseCompleted).toBe(true);
+    expect(allReleaseCompleted).toBe(true);
+    expect(loaded.model.dispose).toHaveBeenCalledOnce();
+    expect(loaded.posenetModel.dispose).toHaveBeenCalledOnce();
+    expect(loaded.dispose).not.toHaveBeenCalled();
+  });
+
   it('falls back to one top-level disposer for non-Teachable-Machine runtimes', async () => {
     const legacy = {
       dispose: vi.fn(),

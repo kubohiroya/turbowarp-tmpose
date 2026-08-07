@@ -272,6 +272,7 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
   const versions = new Map<string, number>();
   const pendingRegistrations = new Map<string, Set<Promise<PoseModelRegistration>>>();
   const modelDisposals = new WeakMap<object, Promise<void>>();
+  const activeModelDisposals = new Set<Promise<void>>();
   const resourceDisposals = new WeakMap<object, Promise<void>>();
   let activeName: string | null = null;
   let released = false;
@@ -321,6 +322,16 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
       if (result.status === 'rejected' && result.reason?.name !== 'AbortError') {
         errors.push(result.reason);
       }
+    }
+  }
+
+  async function waitForModelDisposals(
+    operations: ReadonlyArray<Promise<void>>,
+    errors: unknown[]
+  ): Promise<void> {
+    const results = await Promise.allSettled(operations);
+    for (const result of results) {
+      if (result.status === 'rejected') errors.push(result.reason);
     }
   }
 
@@ -381,6 +392,11 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
       }
     });
     modelDisposals.set(model, operation);
+    activeModelDisposals.add(operation);
+    void operation.then(
+      () => activeModelDisposals.delete(operation),
+      () => activeModelDisposals.delete(operation)
+    );
     return operation;
   }
 
@@ -499,6 +515,7 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
       accumulatedPoseListeners.clear();
       releasePromise = (async () => {
         for (const name of versions.keys()) nextVersion(name);
+        const startedDisposals = [...activeModelDisposals];
         const pending = [...pendingRegistrations.values()].flatMap((operations) => [
           ...operations
         ]);
@@ -524,6 +541,7 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
           }
         }
         await waitForRegistrations(pending, errors);
+        await waitForModelDisposals(startedDisposals, errors);
         try {
           extension.dispose();
         } catch (error) {
