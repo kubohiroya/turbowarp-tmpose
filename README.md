@@ -168,7 +168,10 @@ lighting, camera framing, and a suitable threshold usually improve the result.
 
 The preview is a camera canvas placed over the TurboWarp stage. It can be shown, hidden, moved to
 six stage positions, made transparent, or expanded to fill the stage. Hiding the preview does not
-stop recognition.
+stop recognition. The preview is mirrored by default. Use `set camera preview to [MIRRORING]` to
+switch between `mirrored` and `unmirrored`, including while the camera is running. This display-only
+setting does not change the frames used for recognition. The `camera preview mirroring` reporter
+returns the current setting.
 
 - `stop recognition` clears current results but leaves the camera available;
 - `stop camera` also stops recognition, releases the camera tracks, and removes the preview.
@@ -309,6 +312,25 @@ Sets the preview position on the stage.
 | Type | COMMAND |
 | Opcode | `setPreviewPosition` |
 | `POSITION` | STRING, default: `bottom-right`, menu: `positionMenu` |
+
+### `set camera preview to [MIRRORING]`
+
+Sets whether the preview is mirrored without changing the recognition input.
+
+| Property | Value |
+|---|---|
+| Type | COMMAND |
+| Opcode | `setPreviewMirroring` |
+| `MIRRORING` | STRING, default: `mirrored`, menu: `previewMirroringMenu` |
+
+### `camera preview mirroring`
+
+Returns mirrored or unmirrored for the current preview setting.
+
+| Property | Value |
+|---|---|
+| Type | REPORTER |
+| Opcode | `previewMirroringReporter` |
 
 ### `load model`
 

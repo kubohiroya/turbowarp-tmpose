@@ -11,6 +11,8 @@
     {"opcode":"isPreviewVisible","blockType":"BOOLEAN","text":"camera preview is visible?","description":"Reports whether the preview is configured as visible."},
     {"opcode":"setPreviewOpacity","blockType":"COMMAND","text":"set camera preview opacity to [OPACITY]","description":"Sets preview opacity from 0 to 1.","arguments":{"OPACITY":{"type":"NUMBER","defaultValue":0.6}}},
     {"opcode":"setPreviewPosition","blockType":"COMMAND","text":"set camera preview position to [POSITION]","description":"Sets the preview position on the stage.","arguments":{"POSITION":{"type":"STRING","menu":"positionMenu","defaultValue":"bottom-right"}}},
+    {"opcode":"setPreviewMirroring","blockType":"COMMAND","text":"set camera preview to [MIRRORING]","description":"Sets whether the preview is mirrored without changing the recognition input.","arguments":{"MIRRORING":{"type":"STRING","menu":"previewMirroringMenu","defaultValue":"mirrored"}}},
+    {"opcode":"previewMirroringReporter","blockType":"REPORTER","text":"camera preview mirroring","description":"Returns mirrored or unmirrored for the current preview setting."},
     {"opcode":"loadModel","blockType":"COMMAND","text":"load model","description":"Loads the configured pose model."},
     {"opcode":"isModelLoaded","blockType":"BOOLEAN","text":"model is loaded?","description":"Reports whether the model is loaded."},
     {"opcode":"startPredict","blockType":"COMMAND","text":"start recognition","description":"Starts pose recognition."},
