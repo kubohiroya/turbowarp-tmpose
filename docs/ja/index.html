@@ -157,7 +157,7 @@
       <div class="split-grid" style="margin-top: 28px">
         <article class="detail-card">
           <h3>プレビューはステージ上に表示</h3>
-          <p>カメラのキャンバスを TurboWarp のステージ上に重ねて表示します。スプライトにはなりません。また、非表示にしてもモデルへの入力は変わりません。</p>
+          <p>カメラのキャンバスを TurboWarp のステージ上に重ねて表示します。スプライトにはなりません。また、非表示にしてもモデルへの入力は変わりません。既定は左右反転表示です。カメラの動作中でも <code>mirrored</code> と <code>unmirrored</code> を切り替えられ、認識入力の向きは変わりません。</p>
           <div class="mini-stage" aria-label="ステージの右下にあるプレビュー"><span class="preview-window">カメラ</span></div>
           <div class="position-list" aria-label="プレビューを置ける位置">
             <span>左上</span><span>右上</span><span>左下</span><span>右下</span><span>中央</span><span>ステージ全体</span>
@@ -246,6 +246,8 @@
             <li><code>camera preview is visible?</code></li>
             <li><code>set camera preview opacity to [OPACITY]</code> は透明度を 0〜1 に収めます。</li>
             <li><code>set camera preview position to [POSITION]</code></li>
+            <li><code>set camera preview to [MIRRORING]</code> · <code>mirrored</code>（左右反転、既定）または <code>unmirrored</code>（そのまま）</li>
+            <li><code>camera preview mirroring</code> は現在の設定値を返します。</li>
           </ul>
         </article>
         <article class="reference-card">

@@ -75,14 +75,14 @@ describe('TMPoseExtension', () => {
     expect(info.docsURI).toBe('https://kubohiroya.github.io/turbowarp-tmpose/');
     expect(new TMPoseExtension().versionReporter()).toBe(VERSION);
     expect(VERSION).toBe('1.5.1-typescript');
-    expect(info.blocks).toHaveLength(24);
+    expect(info.blocks).toHaveLength(26);
   });
 
   it('exposes accumulated pose blocks only when the feature flag is enabled', () => {
     const info = new TMPoseExtension({temporalPoseScoring: true}).getInfo() as {
       blocks: Array<{opcode: string}>;
     };
-    expect(info.blocks).toHaveLength(30);
+    expect(info.blocks).toHaveLength(32);
     expect(info.blocks.map((block) => block.opcode)).toEqual(expect.arrayContaining([
       'setAccumulatedPoseParameters',
       'setAccumulatedPoseThreshold',
@@ -430,6 +430,65 @@ describe('TMPoseExtension', () => {
     extension.showPreview();
     expect(canvas.style.display).toBe('block');
     expect(extension.isPreviewVisible()).toBe(true);
+  });
+
+  it('keeps mirrored preview as the default and switches display mirroring at runtime', () => {
+    const canvas = createElement('CANVAS');
+    const extension = new TMPoseExtension();
+    extension.previewCanvas = canvas;
+
+    extension.updatePreviewStyle();
+    expect(canvas.style.transform).toBe('');
+    expect(extension.previewMirroringReporter()).toBe('mirrored');
+
+    extension.setPreviewMirroring({MIRRORING: 'unmirrored'});
+    expect(extension.previewMirrored).toBe(false);
+    expect(canvas.style.transform).toBe('scaleX(-1)');
+    expect(extension.previewMirroringReporter()).toBe('unmirrored');
+
+    extension.setPreviewMirroring({MIRRORING: 'mirrored'});
+    expect(extension.previewMirrored).toBe(true);
+    expect(canvas.style.transform).toBe('');
+    expect(extension.previewMirroringReporter()).toBe('mirrored');
+  });
+
+  it('composes preview mirroring with centered and full-stage layouts', () => {
+    const stage = createElement();
+    const canvas = createElement('CANVAS');
+    stage.appendChild(canvas);
+    const extension = new TMPoseExtension();
+    extension.previewCanvas = canvas;
+    extension.previewStageElement = stage;
+    extension.setPreviewMirroring({MIRRORING: 'unmirrored'});
+
+    extension.setPreviewPosition({POSITION: 'center'});
+    expect(canvas.style.transform).toBe('translate(-50%, -50%) scaleX(-1)');
+
+    extension.setPreviewPosition({POSITION: 'full-stage'});
+    expect(canvas.style.transform).toBe('scaleX(-1)');
+  });
+
+  it('can configure an unmirrored preview before startup without changing recognition input mirroring', async () => {
+    const stage = createElement();
+    const canvas = createElement('CANVAS');
+    const webcam = {
+      canvas,
+      webcam: {srcObject: null},
+      setup: vi.fn(async () => undefined),
+      play: vi.fn(async () => undefined),
+      update: vi.fn()
+    };
+    const Webcam = vi.fn(function () {
+      return webcam;
+    });
+    const extension = new TMPoseExtension({}, {runtime: {Webcam} as never});
+    vi.spyOn(extension, 'findStageElement').mockReturnValue(stage);
+
+    extension.setPreviewMirroring({MIRRORING: 'unmirrored'});
+    await extension.startCamera();
+
+    expect(Webcam).toHaveBeenCalledWith(320, 240, true);
+    expect(canvas.style.transform).toBe('scaleX(-1)');
   });
 
   it('does not append scripts when required globals are already loaded', async () => {

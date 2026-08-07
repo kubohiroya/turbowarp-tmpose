@@ -46,10 +46,28 @@ const POSITION_ALIASES: Record<string, string> = {
   'bottom-right': 'bottom-right', center: 'center', 'full-stage': 'full-stage'
 };
 
+const PREVIEW_MIRRORING_ITEMS = [
+  {text: 'mirrored', value: 'mirrored'},
+  {text: 'unmirrored', value: 'unmirrored'}
+];
+
+const PREVIEW_MIRRORING_ALIASES: Record<string, boolean> = {
+  mirrored: true,
+  unmirrored: false,
+  mirror: true,
+  normal: false,
+  '左右反転': true,
+  'そのまま': false
+};
+
 const loadingPromises = new Map<string, Promise<void>>();
 
 function normalizePosition(value: unknown): string {
   return POSITION_ALIASES[String(value ?? 'bottom-right')] ?? 'bottom-right';
+}
+
+function normalizePreviewMirroring(value: unknown): boolean {
+  return PREVIEW_MIRRORING_ALIASES[String(value ?? 'mirrored').trim().toLowerCase()] ?? true;
 }
 
 function scriptLoadedFor(src: string): boolean {
@@ -148,6 +166,7 @@ export class TMPoseExtension {
     this.lastAccumulationTime = null;
     this.previewOpacity = 0.6;
     this.previewPosition = 'bottom-right';
+    this.previewMirrored = true;
     this.previewVisible = true;
     this.previewCanvas = null;
     this.previewStageElement = null;
@@ -189,6 +208,10 @@ export class TMPoseExtension {
         positionMenu: {
           acceptReporters: true,
           items: POSITION_ITEMS.map((item) => ({text: Scratch.translate(item.text), value: item.value}))
+        },
+        previewMirroringMenu: {
+          acceptReporters: true,
+          items: PREVIEW_MIRRORING_ITEMS.map((item) => ({text: Scratch.translate(item.text), value: item.value}))
         }
       }
     };
@@ -304,6 +327,15 @@ export class TMPoseExtension {
       this.updatePreviewStyle();
       this.validatePreviewAttachment(this.previewStageElement, this.previewCanvas);
     }
+  }
+
+  setPreviewMirroring(args) {
+    this.previewMirrored = normalizePreviewMirroring(args.MIRRORING);
+    if (this.previewCanvas) this.updatePreviewStyle();
+  }
+
+  previewMirroringReporter() {
+    return this.previewMirrored ? 'mirrored' : 'unmirrored';
   }
 
   async loadModel() {
@@ -474,18 +506,21 @@ export class TMPoseExtension {
       left: '', right: '', top: '', bottom: '', transform: '', objectFit: '',
       width: '35%', height: 'auto', borderRadius: '8px'
     });
+    let positionTransform = '';
     switch (this.previewPosition) {
       case 'top-left': canvas.style.left = '8px'; canvas.style.top = '8px'; break;
       case 'top-right': canvas.style.right = '8px'; canvas.style.top = '8px'; break;
       case 'bottom-left': canvas.style.left = '8px'; canvas.style.bottom = '8px'; break;
       case 'center':
         canvas.style.left = '50%'; canvas.style.top = '50%';
-        canvas.style.transform = 'translate(-50%, -50%)'; break;
+        positionTransform = 'translate(-50%, -50%)'; break;
       case 'full-stage':
         canvas.style.left = '0'; canvas.style.top = '0'; canvas.style.width = '100%';
         canvas.style.height = '100%'; canvas.style.objectFit = 'cover'; canvas.style.borderRadius = '0'; break;
       default: canvas.style.right = '8px'; canvas.style.bottom = '8px';
     }
+    const mirroringTransform = this.previewMirrored ? '' : 'scaleX(-1)';
+    canvas.style.transform = [positionTransform, mirroringTransform].filter(Boolean).join(' ');
   }
 
   startLoopIfNeeded() {

@@ -50,6 +50,13 @@ export declare class TMPoseExtension {
                     value: string;
                 }[];
             };
+            previewMirroringMenu: {
+                acceptReporters: boolean;
+                items: {
+                    text: any;
+                    value: string;
+                }[];
+            };
         };
     };
     versionReporter(): string;
@@ -65,6 +72,8 @@ export declare class TMPoseExtension {
     isPreviewVisible(): any;
     setPreviewOpacity(args: any): void;
     setPreviewPosition(args: any): void;
+    setPreviewMirroring(args: any): void;
+    previewMirroringReporter(): "mirrored" | "unmirrored";
     loadModel(): Promise<void>;
     isModelLoaded(): boolean;
     usePreparedModel(model: any): void;
