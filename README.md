@@ -69,6 +69,8 @@ files.
 import {createTMPoseComposition} from '@kubohiroya/turbowarp-tmpose/composition';
 
 const pose = createTMPoseComposition({runtime: bundledTMPoseRuntime});
+const cameras = await pose.listCameraDevices();
+if (cameras[0]) await pose.selectCamera({deviceId: cameras[0].deviceId});
 await pose.registerPoseModel({
   name: 'RescuePose',
   files: [
@@ -99,6 +101,24 @@ idempotent unsubscribe function.
 before camera startup, while the camera is running, or after it has stopped. The default remains
 `mirrored`, and the recognition input keeps the Teachable Machine runtime's existing horizontal
 flip regardless of the preview setting.
+
+`listCameraDevices()` performs a fresh browser enumeration on every call. It returns a deeply
+frozen canonical copy containing only unique, non-empty video device IDs in enumeration order;
+labels remain the empty string when permission has not made them available. Empty IDs are omitted,
+and the first occurrence wins when an ID is duplicated. Enumeration failures use
+`TMPOSE-COMPOSITION-012` and never expose `MediaDeviceInfo`, `MediaStreamTrack`, or a stream.
+
+Select `default`, `front`, or `back` as a camera preference, or wrap a session-only browser ID as
+`{deviceId}`. The object form is intentionally distinct, so a physical device whose ID is literally
+`default`, `front`, or `back` is not mistaken for a preference. A selection can be made before
+camera startup or while recognition is running. Running switches preserve the prepared model,
+recognition state, and all preview settings. Concurrent selections run in call order; a failed
+switch restores the preceding successful camera and selection. Invalid selections use
+`TMPOSE-COMPOSITION-011`. `getCameraSelection()` returns an isolated immutable copy, and
+`getActiveCamera()` returns an immutable `{deviceId, label}` only while an identifiable camera is
+running. TMPose never persists device IDs. `releaseAll()` rejects queued selection work, waits for
+an in-progress switch to become quiescent, and then stops the final stream; all four camera-device
+methods fail closed after release.
 
 Teachable Machine Pose 0.8.3 exposes the classifier as `CustomPoseNet.model` and PoseNet as
 `CustomPoseNet.posenetModel`, while its top-level `dispose()` releases PoseNet only. The composition

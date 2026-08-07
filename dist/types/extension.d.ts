@@ -78,7 +78,10 @@ export declare class TMPoseExtension {
     refreshCameraDevices(): Promise<any>;
     refreshCameraList(): Promise<void>;
     setCameraSelection(args: any): any;
-    applyCameraSelection(selection: any): Promise<void>;
+    setCameraDeviceId(deviceId: any): any;
+    private resolvedCameraSelection;
+    private enqueueCameraSelection;
+    private applyCameraSelection;
     updateActiveCameraInfo(): void;
     cameraCountReporter(): any;
     cameraDeviceIdReporter(): any;

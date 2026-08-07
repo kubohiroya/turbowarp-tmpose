@@ -30,6 +30,15 @@ export interface AccumulatedPoseConfiguration {
 
 export type PreviewMirroring = 'mirrored' | 'unmirrored';
 
+export type CameraPreference = 'default' | 'front' | 'back';
+
+export type CameraSelection = CameraPreference | Readonly<{deviceId: string}>;
+
+export interface CameraDevice {
+  readonly deviceId: string;
+  readonly label: string;
+}
+
 export type AccumulatedPoseListener = (event: Readonly<AccumulatedPoseChangedEventV1>) => void;
 
 export interface TMPoseComposition {
@@ -40,6 +49,10 @@ export interface TMPoseComposition {
   isPoseModelRegistered(name: unknown): boolean;
   getActivePoseModelName(): string | null;
   setPreviewMirroring(mode: PreviewMirroring): void;
+  listCameraDevices(): Promise<ReadonlyArray<Readonly<CameraDevice>>>;
+  selectCamera(selection: CameraSelection): Promise<void>;
+  getCameraSelection(): CameraSelection;
+  getActiveCamera(): Readonly<CameraDevice> | null;
   startCamera(): Promise<void>;
   stopCamera(): void;
   isCameraRunning(): boolean;
@@ -213,6 +226,51 @@ function validatePreviewMirroring(value: unknown): PreviewMirroring {
   return value;
 }
 
+function validateCameraSelection(value: unknown): CameraSelection {
+  if (value === 'default' || value === 'front' || value === 'back') return value;
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== 1 ||
+    !Object.hasOwn(value, 'deviceId') ||
+    typeof value.deviceId !== 'string' ||
+    value.deviceId.trim().length === 0
+  ) {
+    throw compositionError(
+      'TMPOSE-COMPOSITION-011',
+      'Camera selection must be default, front, back, or an object with one non-empty deviceId.'
+    );
+  }
+  return Object.freeze({deviceId: value.deviceId});
+}
+
+function copyCameraSelection(selection: CameraSelection): CameraSelection {
+  return typeof selection === 'string'
+    ? selection
+    : Object.freeze({deviceId: selection.deviceId});
+}
+
+function canonicalCameraDevices(value: unknown): ReadonlyArray<Readonly<CameraDevice>> {
+  if (!Array.isArray(value)) {
+    throw compositionError(
+      'TMPOSE-COMPOSITION-012',
+      'Camera device enumeration returned an invalid result.'
+    );
+  }
+  const devices: CameraDevice[] = [];
+  const seenDeviceIds = new Set<string>();
+  for (const candidate of value) {
+    if (!isRecord(candidate) || typeof candidate.deviceId !== 'string') continue;
+    const deviceId = candidate.deviceId;
+    if (deviceId.trim().length === 0 || seenDeviceIds.has(deviceId)) continue;
+    seenDeviceIds.add(deviceId);
+    devices.push(Object.freeze({
+      deviceId,
+      label: typeof candidate.label === 'string' ? candidate.label : ''
+    }));
+  }
+  return Object.freeze(devices);
+}
+
 function validateFiles(
   input: PoseModelRegistrationInput,
   createFile: NonNullable<TMPoseCompositionOptions['createFile']>
@@ -288,6 +346,8 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
   const activeModelDisposals = new Set<Promise<void>>();
   const resourceDisposals = new WeakMap<object, Promise<void>>();
   let activeName: string | null = null;
+  let cameraSelection: CameraSelection = 'default';
+  let cameraSelectionQueue: Promise<void> = Promise.resolve();
   let released = false;
   let releasePromise: Promise<void> | null = null;
 
@@ -527,6 +587,8 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
       released = true;
       accumulatedPoseListeners.clear();
       releasePromise = (async () => {
+        await cameraSelectionQueue;
+        cameraSelection = 'default';
         for (const name of versions.keys()) nextVersion(name);
         const startedDisposals = [...activeModelDisposals];
         const pending = [...pendingRegistrations.values()].flatMap((operations) => [
@@ -578,6 +640,61 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
     setPreviewMirroring(mode) {
       ensureActive();
       extension.setPreviewMirroring({MIRRORING: validatePreviewMirroring(mode)});
+    },
+
+    async listCameraDevices() {
+      ensureActive();
+      try {
+        const devices = await extension.refreshCameraDevices();
+        ensureActive();
+        return canonicalCameraDevices(devices);
+      } catch (error) {
+        if (released) ensureActive();
+        const wrapped = compositionError(
+          'TMPOSE-COMPOSITION-012',
+          'Camera device enumeration is unavailable.'
+        );
+        Object.defineProperty(wrapped, 'cause', {value: error});
+        throw wrapped;
+      }
+    },
+
+    selectCamera(selection) {
+      let canonicalSelection: CameraSelection;
+      try {
+        ensureActive();
+        canonicalSelection = validateCameraSelection(selection);
+      } catch (error) {
+        return Promise.reject(error);
+      }
+      const operation = cameraSelectionQueue.then(async () => {
+        ensureActive();
+        if (typeof canonicalSelection === 'string') {
+          await extension.setCameraSelection({CAMERA: canonicalSelection});
+        } else {
+          await extension.setCameraDeviceId(canonicalSelection.deviceId);
+        }
+        ensureActive();
+        cameraSelection = canonicalSelection;
+      });
+      cameraSelectionQueue = operation.catch(() => undefined);
+      return operation;
+    },
+
+    getCameraSelection() {
+      ensureActive();
+      return copyCameraSelection(cameraSelection);
+    },
+
+    getActiveCamera() {
+      ensureActive();
+      if (!extension.isCameraRunning()) return null;
+      const deviceId = String(extension.cameraDeviceIdReporter());
+      if (deviceId.trim().length === 0) return null;
+      return Object.freeze({
+        deviceId,
+        label: String(extension.cameraDeviceNameReporter())
+      });
     },
 
     startCamera() {
