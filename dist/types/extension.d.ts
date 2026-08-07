@@ -1,6 +1,6 @@
 import { type FeatureFlags } from './config/feature-flags.js';
 export declare const EXTENSION_ID = "tmpose";
-export declare const VERSION = "1.5.0-typescript";
+export declare const VERSION = "1.5.1-typescript";
 export declare const DOCS_URI = "https://kubohiroya.github.io/turbowarp-tmpose/";
 export declare const ACCUMULATED_POSE_CHANGED_EVENT = "TMPOSE_ACCUMULATED_POSE_CHANGED";
 export interface TMPoseRuntime {
