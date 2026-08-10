@@ -424,6 +424,68 @@ describe('TMPose composition API', () => {
     expect(canvas.style.transform).toBe('scaleX(-1)');
   });
 
+  it('controls preview visibility and full-stage layout without stopping the camera', async () => {
+    const stage = element();
+    const canvas = element('CANVAS');
+    const stopTrack = vi.fn();
+    const webcam = {
+      canvas,
+      webcam: {srcObject: {getTracks: () => [{stop: stopTrack}]}},
+      setup: vi.fn(async () => undefined),
+      play: vi.fn(async () => undefined),
+      update: vi.fn()
+    };
+    const Webcam = vi.fn(function () {
+      return webcam;
+    });
+    vi.mocked(document.querySelector).mockReturnValue(stage);
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: Webcam as never, loadFromFiles: vi.fn()},
+      createFile
+    });
+
+    composition.setPreviewPosition('full-stage');
+    await composition.startCamera();
+    expect(canvas.style).toMatchObject({
+      left: '0',
+      top: '0',
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover',
+      borderRadius: '0'
+    });
+    expect(composition.isPreviewVisible()).toBe(true);
+
+    composition.hidePreview();
+    expect(composition.isPreviewVisible()).toBe(false);
+    expect(canvas.style.display).toBe('none');
+    expect(composition.isCameraRunning()).toBe(true);
+    expect(stopTrack).not.toHaveBeenCalled();
+
+    composition.showPreview();
+    expect(composition.isPreviewVisible()).toBe(true);
+    expect(canvas.style.display).toBe('block');
+    expect(stopTrack).not.toHaveBeenCalled();
+
+    composition.stopCamera();
+    expect(stopTrack).toHaveBeenCalledOnce();
+  });
+
+  it('rejects non-canonical composition preview positions', async () => {
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: class {}, loadFromFiles: vi.fn()},
+      createFile
+    });
+
+    expect(() => composition.setPreviewPosition('full' as never)).toThrow(
+      expect.objectContaining({code: 'TMPOSE-COMPOSITION-013'})
+    );
+    await composition.releaseAll();
+    expect(() => composition.hidePreview()).toThrow(
+      expect.objectContaining({code: 'TMPOSE-COMPOSITION-007'})
+    );
+  });
+
   it('rejects non-canonical composition preview mirroring values', async () => {
     const composition = createTMPoseComposition({
       runtime: {Webcam: class {}, loadFromFiles: vi.fn()},
