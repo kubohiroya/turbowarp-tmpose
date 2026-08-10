@@ -6,6 +6,7 @@ import {
   type CameraSelection,
   type PoseModelRegistration,
   type PreviewMirroring,
+  type PreviewPosition,
   type TMPoseComposition,
   type TMPoseCompositionRuntime
 } from '@kubohiroya/turbowarp-tmpose/composition';
@@ -15,6 +16,11 @@ declare const runtime: TMPoseCompositionRuntime;
 const composition: TMPoseComposition = createTMPoseComposition({runtime});
 const previewMirroring: PreviewMirroring = 'unmirrored';
 composition.setPreviewMirroring(previewMirroring);
+const previewPosition: PreviewPosition = 'full-stage';
+composition.setPreviewPosition(previewPosition);
+composition.hidePreview();
+const previewVisible: boolean = composition.isPreviewVisible();
+if (!previewVisible) composition.showPreview();
 const cameraPreference: CameraPreference = 'front';
 const cameraSelection: CameraSelection = {deviceId: 'session-only-device-id'};
 const cameraDevices: Promise<ReadonlyArray<Readonly<CameraDevice>>> =

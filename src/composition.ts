@@ -30,6 +30,14 @@ export interface AccumulatedPoseConfiguration {
 
 export type PreviewMirroring = 'mirrored' | 'unmirrored';
 
+export type PreviewPosition =
+  | 'top-left'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-right'
+  | 'center'
+  | 'full-stage';
+
 export type CameraPreference = 'default' | 'front' | 'back';
 
 export type CameraSelection = CameraPreference | Readonly<{deviceId: string}>;
@@ -48,6 +56,10 @@ export interface TMPoseComposition {
   releaseAll(): Promise<void>;
   isPoseModelRegistered(name: unknown): boolean;
   getActivePoseModelName(): string | null;
+  showPreview(): void;
+  hidePreview(): void;
+  isPreviewVisible(): boolean;
+  setPreviewPosition(position: PreviewPosition): void;
   setPreviewMirroring(mode: PreviewMirroring): void;
   listCameraDevices(): Promise<ReadonlyArray<Readonly<CameraDevice>>>;
   selectCamera(selection: CameraSelection): Promise<void>;
@@ -221,6 +233,23 @@ function validatePreviewMirroring(value: unknown): PreviewMirroring {
     throw compositionError(
       'TMPOSE-COMPOSITION-010',
       'Preview mirroring must be either mirrored or unmirrored.'
+    );
+  }
+  return value;
+}
+
+function validatePreviewPosition(value: unknown): PreviewPosition {
+  if (
+    value !== 'top-left' &&
+    value !== 'top-right' &&
+    value !== 'bottom-left' &&
+    value !== 'bottom-right' &&
+    value !== 'center' &&
+    value !== 'full-stage'
+  ) {
+    throw compositionError(
+      'TMPOSE-COMPOSITION-013',
+      'Preview position must be top-left, top-right, bottom-left, bottom-right, center, or full-stage.'
     );
   }
   return value;
@@ -635,6 +664,26 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
 
     getActivePoseModelName() {
       return activeName;
+    },
+
+    showPreview() {
+      ensureActive();
+      extension.showPreview();
+    },
+
+    hidePreview() {
+      ensureActive();
+      extension.hidePreview();
+    },
+
+    isPreviewVisible() {
+      ensureActive();
+      return extension.isPreviewVisible();
+    },
+
+    setPreviewPosition(position) {
+      ensureActive();
+      extension.setPreviewPosition({POSITION: validatePreviewPosition(position)});
     },
 
     setPreviewMirroring(mode) {

@@ -943,6 +943,15 @@ function validatePreviewMirroring(value) {
   }
   return value;
 }
+function validatePreviewPosition(value) {
+  if (value !== "top-left" && value !== "top-right" && value !== "bottom-left" && value !== "bottom-right" && value !== "center" && value !== "full-stage") {
+    throw compositionError(
+      "TMPOSE-COMPOSITION-013",
+      "Preview position must be top-left, top-right, bottom-left, bottom-right, center, or full-stage."
+    );
+  }
+  return value;
+}
 function validateCameraSelection(value) {
   if (value === "default" || value === "front" || value === "back") return value;
   if (!isRecord(value) || Object.keys(value).length !== 1 || !Object.hasOwn(value, "deviceId") || typeof value.deviceId !== "string" || value.deviceId.trim().length === 0) {
@@ -1313,6 +1322,22 @@ function createTMPoseComposition(options) {
     },
     getActivePoseModelName() {
       return activeName;
+    },
+    showPreview() {
+      ensureActive();
+      extension.showPreview();
+    },
+    hidePreview() {
+      ensureActive();
+      extension.hidePreview();
+    },
+    isPreviewVisible() {
+      ensureActive();
+      return extension.isPreviewVisible();
+    },
+    setPreviewPosition(position) {
+      ensureActive();
+      extension.setPreviewPosition({ POSITION: validatePreviewPosition(position) });
     },
     setPreviewMirroring(mode) {
       ensureActive();
