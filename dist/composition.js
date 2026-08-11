@@ -515,10 +515,13 @@ class TMPoseExtension {
     return this.predicting;
   }
   findStageElement() {
+    try {
+      const stageCanvas = this.findLikelyStageCanvas();
+      if (stageCanvas.parentElement) return stageCanvas.parentElement;
+    } catch {
+    }
     const editorStage = document.querySelector(".stage_stage-wrapper_2bejr") || document.querySelector('[class*="stage_stage-wrapper"]') || document.querySelector('[class*="stage-wrapper"]') || document.querySelector('[class*="stage-wrapper_stage-wrapper"]');
     if (editorStage) return editorStage;
-    const stageCanvas = this.findLikelyStageCanvas();
-    if (stageCanvas.parentElement) return stageCanvas.parentElement;
     throw new Error("TMPose: TurboWarp stage element was not found.");
   }
   findLikelyStageCanvas() {

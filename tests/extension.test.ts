@@ -361,6 +361,20 @@ describe('TMPoseExtension', () => {
     expect(new TMPoseExtension().findStageElement()).toBe(stage);
   });
 
+  it('uses the renderer canvas mount instead of the outer Editor wrapper', () => {
+    const outerStage = createElement();
+    const innerStage = createElement();
+    const stageCanvas = createElement('CANVAS', visibleRect);
+    const monitorWrapper = createElement();
+    innerStage.appendChild(stageCanvas);
+    outerStage.appendChild(innerStage);
+    outerStage.appendChild(monitorWrapper);
+    querySelector.mockReturnValue(outerStage);
+    querySelectorAll.mockReturnValue([stageCanvas]);
+
+    expect(new TMPoseExtension().findStageElement()).toBe(innerStage);
+  });
+
   it('finds a Packager stage canvas and prefers a 4:3 candidate', () => {
     const wide = createElement('CANVAS', {left: 0, top: 0, right: 800, bottom: 300, width: 800, height: 300});
     const stageCanvas = createElement('CANVAS', visibleRect);
@@ -374,7 +388,9 @@ describe('TMPoseExtension', () => {
   });
 
   it('throws an explicit error when no stage can be found', () => {
-    expect(() => new TMPoseExtension().findStageElement()).toThrow('No likely stage canvas');
+    expect(() => new TMPoseExtension().findStageElement()).toThrow(
+      'TurboWarp stage element was not found'
+    );
   });
 
   it('inserts the preview after the Stage canvas and behind Scratch overlays', () => {
@@ -400,6 +416,34 @@ describe('TMPoseExtension', () => {
 
     expect(stage.insertBefore).toHaveBeenCalledWith(previewCanvas, renderOverlay);
     expect(previewCanvas.style.zIndex).toBe('auto');
+  });
+
+  it('keeps the Editor monitor wrapper outside and after the preview mount', () => {
+    const outerStage = createElement();
+    const innerStage = createElement();
+    const stageCanvas = createElement('CANVAS');
+    const monitorWrapper = createElement();
+    const previewCanvas = createElement('CANVAS');
+    innerStage.appendChild(stageCanvas);
+    outerStage.appendChild(innerStage);
+    outerStage.appendChild(monitorWrapper);
+    stageCanvas.nextSibling = null;
+    innerStage.insertBefore = vi.fn((child: any, before: any) => {
+      expect(before).toBeNull();
+      child.parentElement = innerStage;
+      child.parentNode = innerStage;
+      return child;
+    });
+    querySelector.mockReturnValue(outerStage);
+    querySelectorAll.mockReturnValue([stageCanvas]);
+
+    const extension = new TMPoseExtension();
+    extension.webcam = {canvas: previewCanvas} as never;
+    extension.attachPreviewToStage();
+
+    expect(innerStage.insertBefore).toHaveBeenCalledWith(previewCanvas, null);
+    expect(previewCanvas.parentElement).toBe(innerStage);
+    expect(monitorWrapper.parentElement).toBe(outerStage);
   });
 
   it('throws for a zero-size visible preview when stage layout is available', () => {
