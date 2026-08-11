@@ -505,11 +505,6 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
   function stopActiveModel(model: LoadedPoseModel): unknown[] {
     const errors: unknown[] = [];
     try {
-      extension.stopCamera();
-    } catch (error) {
-      errors.push(error);
-    }
-    try {
       extension.clearPreparedModel(model);
     } catch (error) {
       errors.push(error);
@@ -629,14 +624,13 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
         const errors: unknown[] = [];
         if (activeEntry) {
           errors.push(...stopActiveModel(activeEntry.model));
-        } else {
-          try {
-            extension.stopCamera();
-          } catch (error) {
-            errors.push(error);
-          }
-          activeName = null;
         }
+        try {
+          extension.stopCamera();
+        } catch (error) {
+          errors.push(error);
+        }
+        activeName = null;
         for (const entry of entries) {
           try {
             await disposeModel(entry.model);
