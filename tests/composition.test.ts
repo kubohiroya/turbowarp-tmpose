@@ -816,8 +816,8 @@ describe('TMPose composition API', () => {
 
     await composition.releasePoseModel('Active');
     expect(composition.isRecognizing()).toBe(false);
-    expect(composition.isCameraRunning()).toBe(false);
-    expect(stopTrack).toHaveBeenCalledOnce();
+    expect(composition.isCameraRunning()).toBe(true);
+    expect(stopTrack).not.toHaveBeenCalled();
     expect(activeModel.model.dispose).toHaveBeenCalledOnce();
     expect(activeModel.posenetModel.dispose).toHaveBeenCalledOnce();
     expect(activeModel.dispose).not.toHaveBeenCalled();
@@ -893,10 +893,14 @@ describe('TMPose composition API', () => {
     await vi.waitFor(() => expect(newModel.predict).toHaveBeenCalledOnce());
 
     await composition.releasePoseModel('New');
-    expect(composition.isCameraRunning()).toBe(false);
-    expect(stopTrack).toHaveBeenCalledOnce();
+    expect(composition.isCameraRunning()).toBe(true);
+    expect(stopTrack).not.toHaveBeenCalled();
     expect(newModel.model.dispose).toHaveBeenCalledOnce();
     expect(newModel.posenetModel.dispose).toHaveBeenCalledOnce();
+
+    await composition.releaseAll();
+    expect(composition.isCameraRunning()).toBe(false);
+    expect(stopTrack).toHaveBeenCalledOnce();
   });
 
   it('configures and publishes accumulated pose changes without score-only duplicates', async () => {

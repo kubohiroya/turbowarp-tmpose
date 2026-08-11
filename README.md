@@ -98,6 +98,10 @@ model with `releasePoseModel(name)` or release the complete instance with `relea
 `releaseAll()` also removes accumulated-pose listeners. `subscribeAccumulatedPose()` returns an
 idempotent unsubscribe function.
 
+`releasePoseModel(name)` stops recognition when the selected model is active and disposes only that
+model. It does not stop the camera stream. Camera capture is an independent lifecycle: stop it with
+`stopCamera()`, or release the complete composition with `releaseAll()`.
+
 `setPreviewMirroring('mirrored' | 'unmirrored')` changes only the camera preview. It can be called
 before camera startup, while the camera is running, or after it has stopped. The default remains
 `mirrored`, and the recognition input keeps the Teachable Machine runtime's existing horizontal
@@ -138,7 +142,8 @@ are not stored in the named registry. `releasePoseModel()` and `releaseAll()` in
 matching pending registrations, so their promises do not resolve before a late loaded model has
 been disposed. Switching to an already prepared model after stopping recognition keeps the camera
 stream alive; releasing the old, no-longer-active model does not request camera permission again.
-Releasing the current model with no prepared successor stops recognition and the camera.
+Releasing the current model with no prepared successor stops recognition but keeps the camera
+stream alive. `stopCamera()` and `releaseAll()` stop the stream explicitly.
 
 The accumulated-pose API chooses one candidate for an async-input consumer. It is deliberately
 separate from an Actor action that waits for multiple pose steps in sequence: a sequence consumer

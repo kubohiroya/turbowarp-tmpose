@@ -1182,11 +1182,6 @@ function createTMPoseComposition(options) {
   function stopActiveModel(model) {
     const errors = [];
     try {
-      extension.stopCamera();
-    } catch (error) {
-      errors.push(error);
-    }
-    try {
       extension.clearPreparedModel(model);
     } catch (error) {
       errors.push(error);
@@ -1302,14 +1297,13 @@ function createTMPoseComposition(options) {
         const errors = [];
         if (activeEntry) {
           errors.push(...stopActiveModel(activeEntry.model));
-        } else {
-          try {
-            extension.stopCamera();
-          } catch (error) {
-            errors.push(error);
-          }
-          activeName = null;
         }
+        try {
+          extension.stopCamera();
+        } catch (error) {
+          errors.push(error);
+        }
+        activeName = null;
         for (const entry of entries) {
           try {
             await disposeModel(entry.model);
