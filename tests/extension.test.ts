@@ -377,6 +377,31 @@ describe('TMPoseExtension', () => {
     expect(() => new TMPoseExtension().findStageElement()).toThrow('No likely stage canvas');
   });
 
+  it('inserts the preview after the Stage canvas and behind Scratch overlays', () => {
+    const stage = createElement();
+    const stageCanvas = createElement('CANVAS');
+    const renderOverlay = createElement();
+    const previewCanvas = createElement('CANVAS');
+    stage.appendChild(stageCanvas);
+    stage.appendChild(renderOverlay);
+    stageCanvas.nextSibling = renderOverlay;
+    stage.insertBefore = vi.fn((child: any, before: any) => {
+      expect(before).toBe(renderOverlay);
+      child.parentElement = stage;
+      child.parentNode = stage;
+      return child;
+    });
+    querySelector.mockReturnValue(stage);
+    querySelectorAll.mockReturnValue([stageCanvas]);
+
+    const extension = new TMPoseExtension();
+    extension.webcam = {canvas: previewCanvas} as never;
+    extension.attachPreviewToStage();
+
+    expect(stage.insertBefore).toHaveBeenCalledWith(previewCanvas, renderOverlay);
+    expect(previewCanvas.style.zIndex).toBe('auto');
+  });
+
   it('throws for a zero-size visible preview when stage layout is available', () => {
     const stage = createElement();
     const canvas = createElement('CANVAS', {left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0});

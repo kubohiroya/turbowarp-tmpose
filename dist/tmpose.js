@@ -572,6 +572,12 @@
       if (!this.webcam.canvas) throw new Error("TMPose: webcam.canvas is unavailable.");
       const stage = this.findStageElement();
       const canvas = this.webcam.canvas;
+      let stageCanvas = null;
+      try {
+        const candidate = this.findLikelyStageCanvas();
+        if (candidate.parentElement === stage) stageCanvas = candidate;
+      } catch {
+      }
       this.previewCanvas = canvas;
       this.previewStageElement = stage;
       const computed = window.getComputedStyle(stage);
@@ -579,7 +585,7 @@
       stage.style.overflow = "hidden";
       Object.assign(canvas.style, {
         position: "absolute",
-        zIndex: "999",
+        zIndex: "auto",
         pointerEvents: "none",
         border: "2px solid rgba(255, 255, 255, 0.7)",
         borderRadius: "8px",
@@ -588,7 +594,11 @@
         display: this.previewVisible ? "block" : "none",
         boxSizing: "border-box"
       });
-      if (canvas.parentNode !== stage) stage.appendChild(canvas);
+      if (stageCanvas && typeof stage.insertBefore === "function") {
+        stage.insertBefore(canvas, stageCanvas.nextSibling);
+      } else if (canvas.parentNode !== stage) {
+        stage.appendChild(canvas);
+      }
       this.updatePreviewStyle();
       this.validatePreviewAttachment(stage, canvas);
     }
