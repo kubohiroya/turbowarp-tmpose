@@ -424,7 +424,7 @@ describe('TMPose composition API', () => {
     expect(canvas.style.transform).toBe('scaleX(-1)');
   });
 
-  it('controls preview visibility and full-stage layout without stopping the camera', async () => {
+  it('controls preview visibility, opacity, and full-stage layout without stopping the camera', async () => {
     const stage = element();
     const canvas = element('CANVAS');
     const stopTrack = vi.fn();
@@ -444,6 +444,7 @@ describe('TMPose composition API', () => {
       createFile
     });
 
+    composition.setPreviewOpacity(0.2);
     composition.setPreviewPosition('full-stage');
     await composition.startCamera();
     expect(canvas.style).toMatchObject({
@@ -452,7 +453,8 @@ describe('TMPose composition API', () => {
       width: '100%',
       height: '100%',
       objectFit: 'cover',
-      borderRadius: '0'
+      borderRadius: '0',
+      opacity: '0.2'
     });
     expect(composition.isPreviewVisible()).toBe(true);
 
@@ -467,8 +469,38 @@ describe('TMPose composition API', () => {
     expect(canvas.style.display).toBe('block');
     expect(stopTrack).not.toHaveBeenCalled();
 
+    composition.setPreviewOpacity(0.4);
+    expect(canvas.style.opacity).toBe('0.4');
+
     composition.stopCamera();
     expect(stopTrack).toHaveBeenCalledOnce();
+  });
+
+  it('rejects invalid composition preview opacity without changing the preview', async () => {
+    const stage = element();
+    const canvas = element('CANVAS');
+    const webcam = {
+      canvas,
+      webcam: {srcObject: null},
+      setup: vi.fn(async () => undefined),
+      play: vi.fn(async () => undefined),
+      update: vi.fn()
+    };
+    vi.mocked(document.querySelector).mockReturnValue(stage);
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: vi.fn(function () { return webcam; }) as never, loadFromFiles: vi.fn()},
+      createFile
+    });
+
+    composition.setPreviewOpacity(0.2);
+    await composition.startCamera();
+    for (const opacity of [-0.1, 1.1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => composition.setPreviewOpacity(opacity)).toThrow(
+        expect.objectContaining({code: 'TMPOSE-COMPOSITION-014'})
+      );
+      expect(canvas.style.opacity).toBe('0.2');
+    }
+    composition.stopCamera();
   });
 
   it('rejects non-canonical composition preview positions', async () => {

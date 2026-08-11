@@ -80,6 +80,7 @@ await pose.registerPoseModel({
   ],
 });
 pose.activatePoseModel('RescuePose');
+pose.setPreviewOpacity(0.2);
 pose.setPreviewPosition('full-stage');
 pose.setPreviewMirroring('unmirrored');
 pose.configureAccumulatedPose({
@@ -107,9 +108,11 @@ before camera startup, while the camera is running, or after it has stopped. The
 `mirrored`, and the recognition input keeps the Teachable Machine runtime's existing horizontal
 flip regardless of the preview setting.
 
-`setPreviewPosition()` accepts `top-left`, `top-right`, `bottom-left`, `bottom-right`, `center`, or
-`full-stage`. `hidePreview()` and `showPreview()` change only preview visibility; they do not stop
-or restart the camera stream. Use `stopCamera()` when the MediaStream tracks must be released.
+`setPreviewOpacity()` accepts a finite number from `0` to `1` and applies before or after camera
+startup. `setPreviewPosition()` accepts `top-left`, `top-right`, `bottom-left`, `bottom-right`,
+`center`, or `full-stage`. `hidePreview()` and `showPreview()` change only preview visibility; they
+do not stop or restart the camera stream. Use `stopCamera()` when the MediaStream tracks must be
+released.
 
 `listCameraDevices()` performs a fresh browser enumeration on every call. It returns a deeply
 frozen canonical copy containing only unique, non-empty video device IDs in enumeration order;
