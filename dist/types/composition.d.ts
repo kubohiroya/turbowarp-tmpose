@@ -42,6 +42,7 @@ export interface TMPoseComposition {
     showPreview(): void;
     hidePreview(): void;
     isPreviewVisible(): boolean;
+    setPreviewOpacity(opacity: number): void;
     setPreviewPosition(position: PreviewPosition): void;
     setPreviewMirroring(mode: PreviewMirroring): void;
     listCameraDevices(): Promise<ReadonlyArray<Readonly<CameraDevice>>>;

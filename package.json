@@ -1,6 +1,6 @@
 {
   "name": "@kubohiroya/turbowarp-tmpose",
-  "version": "1.7.3",
+  "version": "1.7.4",
   "description": "A TurboWarp extension for camera-based pose recognition using Teachable Machine Pose models.",
   "author": "Hiroya Kubo <hiroya@cuc.ac.jp>",
   "license": "MPL-2.0",

@@ -59,6 +59,7 @@ export interface TMPoseComposition {
   showPreview(): void;
   hidePreview(): void;
   isPreviewVisible(): boolean;
+  setPreviewOpacity(opacity: number): void;
   setPreviewPosition(position: PreviewPosition): void;
   setPreviewMirroring(mode: PreviewMirroring): void;
   listCameraDevices(): Promise<ReadonlyArray<Readonly<CameraDevice>>>;
@@ -250,6 +251,16 @@ function validatePreviewPosition(value: unknown): PreviewPosition {
     throw compositionError(
       'TMPOSE-COMPOSITION-013',
       'Preview position must be top-left, top-right, bottom-left, bottom-right, center, or full-stage.'
+    );
+  }
+  return value;
+}
+
+function validatePreviewOpacity(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+    throw compositionError(
+      'TMPOSE-COMPOSITION-014',
+      'Preview opacity must be a finite number from 0 to 1.'
     );
   }
   return value;
@@ -673,6 +684,11 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
     isPreviewVisible() {
       ensureActive();
       return extension.isPreviewVisible();
+    },
+
+    setPreviewOpacity(opacity) {
+      ensureActive();
+      extension.setPreviewOpacity({OPACITY: validatePreviewOpacity(opacity)});
     },
 
     setPreviewPosition(position) {
