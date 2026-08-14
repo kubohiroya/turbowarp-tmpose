@@ -1,5 +1,11 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {BLOCK_ICON_URI, DOCS_URI, TMPoseExtension, VERSION} from '../src/extension.js';
+import {
+  BLOCK_ICON_URI,
+  BROWSER_RUNTIME_URL,
+  DOCS_URI,
+  TMPoseExtension,
+  VERSION
+} from '../src/extension.js';
 import packageMetadata from '../package.json' with {type: 'json'};
 
 const visibleRect = {left: 0, top: 0, right: 480, bottom: 360, width: 480, height: 360};
@@ -727,6 +733,21 @@ describe('TMPoseExtension', () => {
     vi.stubGlobal('tmPose', {});
     await new TMPoseExtension().ensureLibrariesLoaded();
     expect((document.head.appendChild as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
+  });
+
+  it('loads one reviewed browser runtime when TensorFlow and TM Pose are absent', async () => {
+    const pending = new TMPoseExtension().ensureLibrariesLoaded();
+    expect(document.head.appendChild).toHaveBeenCalledOnce();
+    expect(scripts).toHaveLength(1);
+    expect(scripts[0].src).toBe(BROWSER_RUNTIME_URL);
+    vi.stubGlobal('tf', {version: '1.3.1'});
+    vi.stubGlobal('tmPose', {Webcam: class {}});
+    const loadHandler = scripts[0].addEventListener.mock.calls.find(
+      ([eventName]: [string]) => eventName === 'load'
+    )?.[1];
+    expect(loadHandler).toBeTypeOf('function');
+    loadHandler();
+    await expect(pending).resolves.toBeUndefined();
   });
 
   it('invalidates an old asynchronous loop generation on camera cleanup', () => {

@@ -22,6 +22,7 @@ export interface AccumulatedPoseChangedEventV1 {
     reason: 'prediction' | 'reset' | 'stop';
     timestamp: number;
 }
+export declare const BROWSER_RUNTIME_URL: string;
 export declare function loadScript(src: string): Promise<void>;
 export declare class TMPoseExtension {
     [key: string]: any;

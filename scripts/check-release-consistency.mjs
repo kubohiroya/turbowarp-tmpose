@@ -32,6 +32,31 @@ for (const path of ['dist/tmpose.js', 'dist/composition.js']) {
   }
 }
 
+const browserRuntime = await readFile('dist/runtime.js', 'utf8');
+if (!browserRuntime.includes(`version:"${version}"`)) {
+  errors.push(`dist/runtime.js must embed package version ${version}`);
+}
+if (
+  !browserRuntime.startsWith('/*! @license Includes TensorFlow.js 1.3.1') ||
+  !browserRuntime.includes(`/blob/v${version}/THIRD_PARTY_NOTICES.md`)
+) {
+  errors.push('dist/runtime.js must retain the versioned third-party license notice');
+}
+if (
+  browserRuntime.split(' has already been set. Overwriting the platform with ').length - 1 !== 1 ||
+  browserRuntime.split(' backend was already registered. Reusing existing backend factory.').length -
+    1 !==
+    1
+) {
+  errors.push('dist/runtime.js must contain one TensorFlow.js browser platform and WebGL backend');
+}
+
+const notices = await readFile('THIRD_PARTY_NOTICES.md', 'utf8');
+const distributedNotices = await readFile('dist/THIRD_PARTY_NOTICES.md', 'utf8');
+if (notices !== distributedNotices) {
+  errors.push('dist/THIRD_PARTY_NOTICES.md must match the repository notice');
+}
+
 if (process.env.GITHUB_REF_TYPE === 'tag') {
   const expectedTag = `v${version}`;
   if (process.env.GITHUB_REF_NAME !== expectedTag) {

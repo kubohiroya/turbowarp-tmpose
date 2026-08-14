@@ -8,7 +8,7 @@ const FEATURE_FLAGS = {
   temporalPoseScoring: false,
   accumulatedPoseEvents: false
 };
-const version = "1.8.0";
+const version = "1.8.1";
 const packageMetadata = {
   version
 };
@@ -19,8 +19,7 @@ const ACCUMULATED_POSE_CHANGED_EVENT = "TMPOSE_ACCUMULATED_POSE_CHANGED";
 const BLOCK_ICON_URI = `data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><g fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21V8h13M43 8h13v13M8 43v13h13M43 56h13V43M32 25v15M20 31l12 5 12-5M32 40 23 52M32 40l9 12"/><circle cx="32" cy="18" r="5"/></g></svg>'
 )}`;
-const TFJS_URL = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js";
-const TMPOSE_URL = "https://cdn.jsdelivr.net/npm/@teachablemachine/pose@0.8.3/dist/teachablemachine-pose.min.js";
+const BROWSER_RUNTIME_URL = `https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@${packageMetadata.version}/dist/runtime.js`;
 const POSITION_ITEMS = [
   { text: "top left", value: "top-left" },
   { text: "top right", value: "top-right" },
@@ -93,8 +92,9 @@ function cameraConstraints(selection) {
   return void 0;
 }
 function scriptLoadedFor(src) {
-  if (src === TFJS_URL) return typeof globalThis.tf !== "undefined";
-  if (src === TMPOSE_URL) return typeof globalThis.tmPose !== "undefined";
+  if (src === BROWSER_RUNTIME_URL) {
+    return typeof globalThis.tf !== "undefined" && typeof globalThis.tmPose !== "undefined";
+  }
   return false;
 }
 function loadScript(src) {
@@ -248,10 +248,11 @@ class TMPoseExtension {
     if (!this.allowRemoteLibraries) {
       throw new Error("TMPose: A preloaded Teachable Machine Pose runtime is required.");
     }
-    if (typeof globalThis.tf === "undefined") await loadScript(TFJS_URL);
-    if (typeof globalThis.tmPose === "undefined") await loadScript(TMPOSE_URL);
-    if (typeof globalThis.tmPose === "undefined") {
-      throw new Error("TMPose: Teachable Machine Pose could not be loaded.");
+    if (typeof globalThis.tf === "undefined" || typeof globalThis.tmPose === "undefined") {
+      await loadScript(BROWSER_RUNTIME_URL);
+    }
+    if (typeof globalThis.tf === "undefined" || typeof globalThis.tmPose === "undefined") {
+      throw new Error("TMPose: The reviewed browser runtime could not be loaded.");
     }
     this.tmPoseRuntime = globalThis.tmPose;
   }

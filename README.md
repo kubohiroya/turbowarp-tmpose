@@ -34,7 +34,7 @@ preview layout, score behavior, privacy, and troubleshooting. English is the def
 
 - a published Teachable Machine Pose model URL;
 - a camera and permission to use it in the browser;
-- network access for TensorFlow.js, the Teachable Machine Pose library, and the model files;
+- network access for the reviewed TMPose browser runtime and the model files;
 - TurboWarp's **Run extension without sandbox** option.
 
 > [!IMPORTANT]
@@ -49,13 +49,21 @@ with **Run extension without sandbox** enabled.
 The browser-ready, version-pinned build is also available from jsDelivr:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.8.0/dist/tmpose.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.8.1/dist/tmpose.js
+```
+
+The standalone extension loads one reviewed browser runtime that contains one TensorFlow.js 1.3.1
+module graph together with Teachable Machine Pose 0.8.3. Composite runtimes can load or embed the
+same artifact without rewriting a minified third-party bundle:
+
+```text
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.8.1/dist/runtime.js
 ```
 
 To add the published package to another project:
 
 ```sh
-pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.8.0
+pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.8.1
 ```
 
 ### Composition API
@@ -634,7 +642,7 @@ pnpm check
 
 The check runs type checking, tests, the production build, generated-documentation validation,
 Pages link validation, distribution reproducibility, and an npm package dry run. The build produces
-`dist/tmpose.js`.
+`dist/tmpose.js`, `dist/composition.js`, and `dist/runtime.js`.
 
 The version in `package.json` is the release source of truth. The runtime reporter appends
 `-typescript` to that version, and the release consistency check keeps the generated bundles,
@@ -642,7 +650,9 @@ exact-version README examples, Pages badges, and release tag aligned with it.
 
 ## External libraries
 
-The extension currently loads TensorFlow.js 1.3.1 and Teachable Machine Pose 0.8.3 from jsDelivr at runtime.
+The version-pinned `dist/runtime.js` artifact bundles TensorFlow.js 1.3.1 and Teachable Machine Pose
+0.8.3 in one reviewed module graph. The standalone extension loads that single artifact from
+jsDelivr when no runtime is injected.
 
 ## License
 

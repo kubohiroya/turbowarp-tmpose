@@ -35,5 +35,7 @@ jobs:
           files: |
             dist/tmpose.js
             dist/composition.js
+            dist/runtime.js
+            dist/THIRD_PARTY_NOTICES.md
             kubohiroya-turbowarp-tmpose-*.tgz
             turbowarp-tmpose.zip
