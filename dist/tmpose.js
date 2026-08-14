@@ -17,8 +17,12 @@
     temporalPoseScoring: false,
     accumulatedPoseEvents: false
   };
+  const version = "1.7.5";
+  const packageMetadata = {
+    version
+  };
   const EXTENSION_ID = "tmpose";
-  const VERSION = "1.6.1-typescript";
+  const VERSION = `${packageMetadata.version}-typescript`;
   const DOCS_URI = "https://kubohiroya.github.io/turbowarp-tmpose/";
   const ACCUMULATED_POSE_CHANGED_EVENT = "TMPOSE_ACCUMULATED_POSE_CHANGED";
   const TFJS_URL = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js";
