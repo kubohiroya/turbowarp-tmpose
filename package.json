@@ -1,6 +1,6 @@
 {
   "name": "@kubohiroya/turbowarp-tmpose",
-  "version": "1.7.4",
+  "version": "1.7.5",
   "description": "A TurboWarp extension for camera-based pose recognition using Teachable Machine Pose models.",
   "author": "Hiroya Kubo <hiroya@cuc.ac.jp>",
   "license": "MPL-2.0",
@@ -45,12 +45,13 @@
     "docs": "node scripts/generate-readme.mjs",
     "docs:check": "npm run docs && git diff --exit-code -- README.md",
     "docs:pages:check": "node scripts/check-pages.mjs",
+    "release:consistency:check": "node scripts/check-release-consistency.mjs",
     "check:dist": "npm run build && git diff --exit-code -- dist",
     "archive:check": "node scripts/check-github-archive.mjs",
     "pack:check": "npm pack --dry-run --ignore-scripts",
     "release:check": "npm publish --dry-run --access public",
-    "check": "npm run typecheck && npm run test && npm run build && npm run types:composition:check && npm run docs:check && npm run docs:pages:check && npm run check:dist && npm run archive:check && npm run pack:check",
-    "prepack": "npm run build"
+    "check": "npm run typecheck && npm run test && npm run build && npm run types:composition:check && npm run docs:check && npm run docs:pages:check && npm run release:consistency:check && npm run check:dist && npm run archive:check && npm run pack:check",
+    "prepack": "npm run build && npm run release:consistency:check"
   },
   "devDependencies": {
     "@kubohiroya/vite-plugin-turbowarp-extension": "0.1.0",

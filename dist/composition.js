@@ -8,8 +8,12 @@ const FEATURE_FLAGS = {
   temporalPoseScoring: false,
   accumulatedPoseEvents: false
 };
+const version = "1.7.5";
+const packageMetadata = {
+  version
+};
 const EXTENSION_ID = "tmpose";
-const VERSION = "1.6.1-typescript";
+const VERSION = `${packageMetadata.version}-typescript`;
 const DOCS_URI = "https://kubohiroya.github.io/turbowarp-tmpose/";
 const ACCUMULATED_POSE_CHANGED_EVENT = "TMPOSE_ACCUMULATED_POSE_CHANGED";
 const TFJS_URL = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js";
@@ -1088,9 +1092,9 @@ function createTMPoseComposition(options) {
     }
   }
   function nextVersion(name) {
-    const version = (versions.get(name) ?? 0) + 1;
-    versions.set(name, version);
-    return version;
+    const version2 = (versions.get(name) ?? 0) + 1;
+    versions.set(name, version2);
+    return version2;
   }
   function trackRegistration(name, operation) {
     let pending = pendingRegistrations.get(name);
@@ -1202,7 +1206,7 @@ function createTMPoseComposition(options) {
     registerPoseModel(input) {
       let name;
       let files;
-      let version;
+      let version2;
       try {
         ensureActive();
         if (!isRecord(input)) {
@@ -1216,7 +1220,7 @@ function createTMPoseComposition(options) {
             `Stop recognition before replacing active pose model ${name}.`
           );
         }
-        version = nextVersion(name);
+        version2 = nextVersion(name);
       } catch (error) {
         return Promise.reject(error);
       }
@@ -1229,7 +1233,7 @@ function createTMPoseComposition(options) {
         if (!hasCompleteDisposalContract(model)) {
           await disposeModel(model);
         }
-        if (versions.get(name) !== version) {
+        if (versions.get(name) !== version2) {
           await disposeModel(model);
           throw abortError(name);
         }

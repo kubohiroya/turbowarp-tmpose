@@ -1,8 +1,9 @@
 import definitions from './block-definitions.json' with {type: 'json'};
 import {FEATURE_FLAGS, type FeatureFlags} from './config/feature-flags.js';
+import packageMetadata from '../package.json' with {type: 'json'};
 
 export const EXTENSION_ID = 'tmpose';
-export const VERSION = '1.6.1-typescript';
+export const VERSION = `${packageMetadata.version}-typescript`;
 export const DOCS_URI = 'https://kubohiroya.github.io/turbowarp-tmpose/';
 export const ACCUMULATED_POSE_CHANGED_EVENT = 'TMPOSE_ACCUMULATED_POSE_CHANGED';
 

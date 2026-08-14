@@ -49,13 +49,13 @@ with **Run extension without sandbox** enabled.
 The browser-ready, version-pinned build is also available from jsDelivr:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.6.1/dist/tmpose.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.7.5/dist/tmpose.js
 ```
 
 To add the published package to another project:
 
 ```sh
-pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.6.1
+pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.7.5
 ```
 
 ### Composition API
@@ -635,6 +635,10 @@ pnpm check
 The check runs type checking, tests, the production build, generated-documentation validation,
 Pages link validation, distribution reproducibility, and an npm package dry run. The build produces
 `dist/tmpose.js`.
+
+The version in `package.json` is the release source of truth. The runtime reporter appends
+`-typescript` to that version, and the release consistency check keeps the generated bundles,
+exact-version README examples, Pages badges, and release tag aligned with it.
 
 ## External libraries
 
