@@ -3,6 +3,7 @@ export declare const EXTENSION_ID = "tmpose";
 export declare const VERSION: string;
 export declare const DOCS_URI = "https://kubohiroya.github.io/turbowarp-tmpose/";
 export declare const ACCUMULATED_POSE_CHANGED_EVENT = "TMPOSE_ACCUMULATED_POSE_CHANGED";
+export declare const BLOCK_ICON_URI: string;
 export interface TMPoseRuntime {
     Webcam: new (width: number, height: number, flipHorizontal: boolean) => any;
     load?(modelURL: string, metadataURL: string): Promise<any>;
@@ -29,6 +30,7 @@ export declare class TMPoseExtension {
         id: string;
         name: any;
         docsURI: string;
+        blockIconURI: string;
         blocks: {
             arguments?: {
                 [k: string]: {

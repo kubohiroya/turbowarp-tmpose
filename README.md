@@ -49,13 +49,13 @@ with **Run extension without sandbox** enabled.
 The browser-ready, version-pinned build is also available from jsDelivr:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.7.5/dist/tmpose.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.8.0/dist/tmpose.js
 ```
 
 To add the published package to another project:
 
 ```sh
-pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.7.5
+pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.8.0
 ```
 
 ### Composition API
