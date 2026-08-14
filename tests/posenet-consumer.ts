@@ -5,6 +5,7 @@ import {
   poseNetBundleManifest,
   type PoseNetBundleFileLoader,
   type PoseNetProjectBundle,
+  type TMPoseRuntimeLoadOptions,
   type TMPoseBrowserRuntime
 } from '@kubohiroya/turbowarp-tmpose/posenet';
 
@@ -30,7 +31,17 @@ const projectBundle: PoseNetProjectBundle = {
   files: []
 };
 
-const bundledRuntime = createBundledTMPoseRuntime({runtime, projectBundle});
+const bundledRuntime = createBundledTMPoseRuntime({
+  runtime,
+  projectBundle,
+  parallelModelInitialization: true
+});
+const loadController = new AbortController();
+const loadOptions: TMPoseRuntimeLoadOptions = {
+  signal: loadController.signal,
+  parallelModelInitialization: true
+};
+void bundledRuntime.loadFromFiles({}, {}, {}, loadOptions);
 const version: string = poseNetBundleManifest.distribution.version;
 
 void bundledRuntime;

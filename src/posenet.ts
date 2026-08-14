@@ -34,13 +34,28 @@ export type VerifiedPoseNetBundle = Readonly<{
 
 export type TMPoseBrowserRuntime = Readonly<{
   Webcam: new (...args: any[]) => unknown;
-  loadFromFiles(model: unknown, weights: unknown, metadata: unknown): Promise<unknown>;
+  loadFromFiles(
+    model: unknown,
+    weights: unknown,
+    metadata: unknown,
+    options?: TMPoseRuntimeLoadOptions
+  ): Promise<unknown>;
+}>;
+
+export type TMPoseRuntimeLoadOptions = Readonly<{
+  signal?: AbortSignal;
+  parallelModelInitialization?: boolean;
 }>;
 
 export type BundledTMPoseRuntime = TMPoseBrowserRuntime &
   Readonly<{poseNetManifest: typeof poseNetBundleManifest}>;
 
 type DigestRuntime = Pick<SubtleCrypto, 'digest'>;
+
+export type PoseNetOperationOptions = Readonly<{
+  subtleCrypto?: DigestRuntime;
+  signal?: AbortSignal;
+}>;
 
 type RuntimeGlobal = Record<PropertyKey, unknown> & {
   Response?: typeof Response;
@@ -139,6 +154,17 @@ export class TMPosePoseNetError extends Error {
 
 function fail(code: string, message: string): never {
   throw new TMPosePoseNetError(code, message);
+}
+
+function abortError(): Error {
+  const error = new Error('TMPose PoseNet model loading was cancelled.');
+  error.name = 'AbortError';
+  Object.defineProperty(error, 'code', {value: 'TMPOSE-POSENET-ABORTED'});
+  return error;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) throw abortError();
 }
 
 function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
@@ -270,10 +296,15 @@ function canonicalProjectBundle(descriptor: unknown): PoseNetProjectBundle {
   return Object.freeze({formatVersion: 1, encoding: 'base64', files: Object.freeze(files)});
 }
 
-function decodeProjectBundle(descriptor: unknown): ReadonlyArray<PoseNetBundleFileInput> {
+function decodeProjectBundle(
+  descriptor: unknown,
+  signal?: AbortSignal
+): ReadonlyArray<PoseNetBundleFileInput> {
+  throwIfAborted(signal);
   const canonical = canonicalProjectBundle(descriptor);
   return Object.freeze(
     canonical.files.map((candidate, index) => {
+      throwIfAborted(signal);
       const expected = expectedFiles[index]!;
       const bytes = decodeBase64(
         candidate.data,
@@ -293,15 +324,18 @@ function decodeProjectBundle(descriptor: unknown): ReadonlyArray<PoseNetBundleFi
 
 export async function verifyPoseNetBundle(
   files: ReadonlyArray<PoseNetBundleFileInput>,
-  {subtleCrypto = globalThis.crypto?.subtle}: {subtleCrypto?: DigestRuntime} = {}
+  {
+    subtleCrypto = globalThis.crypto?.subtle,
+    signal
+  }: PoseNetOperationOptions = {}
 ): Promise<VerifiedPoseNetBundle> {
+  throwIfAborted(signal);
   const digestRuntime = requireSubtleCrypto(subtleCrypto);
   if (!Array.isArray(files) || files.length !== expectedFiles.length) {
     return fail('TMPOSE-POSENET-ASSET-004', 'PoseNet bundle must contain exactly three files.');
   }
-  const verifiedFiles: VerifiedPoseNetBundleFile[] = [];
   let totalBytes = 0;
-  for (const expected of expectedFiles) {
+  const candidates = expectedFiles.map((expected) => {
     const candidate = files.find((file) => isRecord(file) && file.path === expected.path);
     if (!candidate) {
       return fail('TMPOSE-POSENET-ASSET-002', `PoseNet file is missing: ${expected.path}.`);
@@ -314,24 +348,32 @@ export async function verifyPoseNetBundle(
       );
     }
     totalBytes += bytes.byteLength;
-    if ((await sha256(bytes, digestRuntime)) !== expected.sha256) {
+    return {expected, bytes};
+  });
+  if (totalBytes > poseNetBundleManifest.limits.maxTotalBytes) {
+    return fail('TMPOSE-POSENET-ASSET-004', 'PoseNet bundle exceeds its total byte limit.');
+  }
+  const digests = await Promise.all(
+    candidates.map(async ({bytes}) => {
+      throwIfAborted(signal);
+      return sha256(bytes, digestRuntime);
+    })
+  );
+  throwIfAborted(signal);
+  const verifiedFiles = candidates.map(({expected, bytes}, index) => {
+    if (digests[index] !== expected.sha256) {
       return fail(
         'TMPOSE-POSENET-ASSET-003',
         `PoseNet file integrity mismatch: ${expected.path}.`
       );
     }
-    verifiedFiles.push(
-      Object.freeze({
-        path: expected.path,
-        url: expected.url,
-        mediaType: expected.mediaType,
-        bytes: new Uint8Array(bytes)
-      })
-    );
-  }
-  if (totalBytes > poseNetBundleManifest.limits.maxTotalBytes) {
-    return fail('TMPOSE-POSENET-ASSET-004', 'PoseNet bundle exceeds its total byte limit.');
-  }
+    return Object.freeze({
+      path: expected.path,
+      url: expected.url,
+      mediaType: expected.mediaType,
+      bytes: new Uint8Array(bytes)
+    });
+  });
   const jsonFile = verifiedFiles.find(({path}) => path === 'model-stride16.json');
   if (!jsonFile) {
     return fail('TMPOSE-POSENET-ASSET-002', 'PoseNet model JSON is missing.');
@@ -372,24 +414,27 @@ export async function verifyPoseNetBundle(
 
 export async function loadPoseNetBundle(
   loadFile: PoseNetBundleFileLoader,
-  options: {subtleCrypto?: DigestRuntime} = {}
+  options: PoseNetOperationOptions = {}
 ): Promise<VerifiedPoseNetBundle> {
   if (typeof loadFile !== 'function') throw new TypeError('PoseNet file loader is required.');
+  throwIfAborted(options.signal);
   const files = await Promise.all(
-    expectedFiles.map(async (file) =>
-      Object.freeze({
+    expectedFiles.map(async (file) => {
+      const bytes = requireBytes(await loadFile(file), `PoseNet file ${file.path}`);
+      throwIfAborted(options.signal);
+      return Object.freeze({
         path: file.path,
         mediaType: file.mediaType,
-        bytes: requireBytes(await loadFile(file), `PoseNet file ${file.path}`)
-      })
-    )
+        bytes
+      });
+    })
   );
   return verifyPoseNetBundle(files, options);
 }
 
 export async function createPoseNetProjectBundle(
   files: ReadonlyArray<PoseNetBundleFileInput>,
-  options: {subtleCrypto?: DigestRuntime} = {}
+  options: PoseNetOperationOptions = {}
 ): Promise<PoseNetProjectBundle> {
   const verified = await verifyPoseNetBundle(files, options);
   return createProjectBundleFromVerified(verified);
@@ -415,21 +460,21 @@ function createProjectBundleFromVerified(verified: VerifiedPoseNetBundle): PoseN
 
 export async function createPoseNetProjectBundleFromLoader(
   loadFile: PoseNetBundleFileLoader,
-  options: {subtleCrypto?: DigestRuntime} = {}
+  options: PoseNetOperationOptions = {}
 ): Promise<PoseNetProjectBundle> {
   return createProjectBundleFromVerified(await loadPoseNetBundle(loadFile, options));
 }
 
 export async function loadPoseNetProjectBundle(
   descriptor: unknown,
-  options: {subtleCrypto?: DigestRuntime} = {}
+  options: PoseNetOperationOptions = {}
 ): Promise<VerifiedPoseNetBundle> {
-  return verifyPoseNetBundle(decodeProjectBundle(descriptor), options);
+  return verifyPoseNetBundle(decodeProjectBundle(descriptor, options.signal), options);
 }
 
 export async function validatePoseNetProjectBundle(
   descriptor: unknown,
-  options: {subtleCrypto?: DigestRuntime} = {}
+  options: PoseNetOperationOptions = {}
 ): Promise<PoseNetProjectBundle> {
   await loadPoseNetProjectBundle(descriptor, options);
   return canonicalProjectBundle(descriptor);
@@ -459,6 +504,28 @@ function requestUrl(input: unknown, baseUrl: string): string | null {
   }
 }
 
+async function disposeRuntimeModel(value: unknown): Promise<void> {
+  if (!isRecord(value)) return;
+  const classifier = isRecord(value.model) && typeof value.model.dispose === 'function'
+    ? value.model
+    : null;
+  const poseNet = isRecord(value.posenetModel) && typeof value.posenetModel.dispose === 'function'
+    ? value.posenetModel
+    : null;
+  const resources = classifier && poseNet && classifier !== poseNet
+    ? [classifier, poseNet]
+    : typeof value.dispose === 'function'
+      ? [value]
+      : [...new Set([classifier, poseNet].filter((resource) => resource !== null))];
+  const results = await Promise.allSettled(
+    resources.map((resource) => Promise.resolve().then(() => resource.dispose()))
+  );
+  const errors = results.flatMap((result) => result.status === 'rejected' ? [result.reason] : []);
+  if (errors.length > 0) {
+    throw new AggregateError(errors, 'TMPose could not dispose a cancelled runtime model.');
+  }
+}
+
 export function createBundledTMPoseRuntime(options: {
   runtime: TMPoseBrowserRuntime;
   globalObject?: RuntimeGlobal;
@@ -468,8 +535,15 @@ export function createBundledTMPoseRuntime(options: {
     | Promise<ReadonlyArray<PoseNetBundleFileInput>>;
   projectBundle?: PoseNetProjectBundle;
   subtleCrypto?: DigestRuntime;
+  parallelModelInitialization?: boolean;
 }): BundledTMPoseRuntime {
   if (!isRecord(options)) throw new TypeError('PoseNet runtime options are required.');
+  if (
+    options.parallelModelInitialization !== undefined &&
+    typeof options.parallelModelInitialization !== 'boolean'
+  ) {
+    throw new TypeError('parallelModelInitialization must be a boolean.');
+  }
   const runtime = validateRuntime(options.runtime);
   const globalObject = (options.globalObject ?? globalThis) as RuntimeGlobal;
   const ResponseConstructor = globalObject.Response ?? globalThis.Response;
@@ -499,16 +573,22 @@ export function createBundledTMPoseRuntime(options: {
   };
   let previousLoad: Promise<unknown> = Promise.resolve();
 
-  async function loadFromFiles(model: unknown, weights: unknown, metadata: unknown): Promise<unknown> {
+  async function loadFromFiles(
+    model: unknown,
+    weights: unknown,
+    metadata: unknown,
+    loadOptions: TMPoseRuntimeLoadOptions = {}
+  ): Promise<unknown> {
     const task = async () => {
-      const bundle = await verifySupply();
-      const byUrl = new Map(bundle.files.map((file) => [file.url, file]));
+      throwIfAborted(loadOptions.signal);
       const previousFetch = globalObject.fetch;
       if (typeof previousFetch !== 'function') {
         return fail('TMPOSE-POSENET-RUNTIME-001', 'Browser fetch is required.');
       }
       const baseUrl = globalObject.location?.href ?? 'http://localhost/';
       const localFetch = async (input: unknown): Promise<Response> => {
+        const bundle = await verifySupply();
+        const byUrl = new Map(bundle.files.map((file) => [file.url, file]));
         const url = requestUrl(input, baseUrl);
         const file = url ? byUrl.get(url) : undefined;
         if (!file) {
@@ -533,7 +613,59 @@ export function createBundledTMPoseRuntime(options: {
         );
       }
       try {
-        return await runtime.loadFromFiles(model, weights, metadata);
+        let runtimeLoad: Promise<unknown>;
+        try {
+          runtimeLoad = Promise.resolve(
+            runtime.loadFromFiles(model, weights, metadata, {
+              ...loadOptions,
+              ...(options.parallelModelInitialization
+                ? {parallelModelInitialization: true}
+                : {})
+            })
+          );
+        } catch (error) {
+          runtimeLoad = Promise.reject(error);
+        }
+        // Start shared verification after the runtime has begun classifier loading. The
+        // intercepted PoseNet fetch still awaits the verified supply before exposing bytes.
+        const supply = verifySupply();
+        const [runtimeResult, supplyResult] = await Promise.allSettled([runtimeLoad, supply]);
+        let disposalError: unknown;
+        if (
+          runtimeResult.status === 'fulfilled' &&
+          (loadOptions.signal?.aborted || supplyResult.status === 'rejected')
+        ) {
+          try {
+            await disposeRuntimeModel(runtimeResult.value);
+          } catch (error) {
+            disposalError = error;
+          }
+        }
+        if (loadOptions.signal?.aborted) {
+          const cancellation = abortError();
+          const runtimeError =
+            runtimeResult.status === 'rejected' && runtimeResult.reason?.name !== 'AbortError'
+              ? runtimeResult.reason
+              : undefined;
+          if (runtimeError || disposalError) {
+            throw new AggregateError(
+              [cancellation, runtimeError, disposalError].filter((error) => error !== undefined),
+              'TMPose cancellation encountered a runtime or disposal failure.'
+            );
+          }
+          throw cancellation;
+        }
+        if (supplyResult.status === 'rejected') {
+          if (disposalError) {
+            throw new AggregateError(
+              [supplyResult.reason, disposalError],
+              'PoseNet verification failed and model cleanup was incomplete.'
+            );
+          }
+          throw supplyResult.reason;
+        }
+        if (runtimeResult.status === 'rejected') throw runtimeResult.reason;
+        return runtimeResult.value;
       } finally {
         if (globalObject.fetch === localFetch) {
           try {

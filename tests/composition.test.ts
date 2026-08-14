@@ -170,6 +170,242 @@ describe('TMPose composition API', () => {
     }
     expect(loadFromFiles).not.toHaveBeenCalled();
     expect(() => createTMPoseComposition({runtime: {} as never})).toThrow(/loadFromFiles/u);
+    expect(() =>
+      createTMPoseComposition({
+        runtime: {Webcam: class {}, loadFromFiles},
+        modelInitializationPolicy: 'invalid' as never
+      })
+    ).toThrow(/modelInitializationPolicy/u);
+    expect(() =>
+      createTMPoseComposition({
+        runtime: {Webcam: class {}, loadFromFiles},
+        parallelModelInitialization: 'yes' as never
+      })
+    ).toThrow(/parallelModelInitialization/u);
+    await expect(
+      composition.registerPoseModel(
+        {name: 'Options', files: files()},
+        {signal: {} as AbortSignal}
+      )
+    ).rejects.toMatchObject({code: 'TMPOSE-COMPOSITION-015'});
+  });
+
+  it('cancels a registration before the runtime loader starts', async () => {
+    const loadFromFiles = vi.fn();
+    const controller = new AbortController();
+    controller.abort('scene-skipped');
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: class {}, loadFromFiles},
+      createFile
+    });
+
+    const registration = composition.registerPoseModel(
+      {name: 'Cancelled', files: files()},
+      {signal: controller.signal}
+    );
+
+    await expect(registration).rejects.toMatchObject({
+      name: 'AbortError',
+      code: 'TMPOSE-COMPOSITION-015'
+    });
+    expect(loadFromFiles).not.toHaveBeenCalled();
+    expect(composition.isPoseModelRegistered('Cancelled')).toBe(false);
+  });
+
+  it('disposes a running registration after its cooperative cancellation boundary', async () => {
+    const pendingLoad = deferred<ReturnType<typeof model>>();
+    const loadFromFiles = vi.fn(() => pendingLoad.promise);
+    const controller = new AbortController();
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: class {}, loadFromFiles},
+      createFile
+    });
+    const registration = composition.registerPoseModel(
+      {name: 'Cancelled', files: files()},
+      {signal: controller.signal}
+    );
+    await vi.waitFor(() => expect(loadFromFiles).toHaveBeenCalledOnce());
+    expect(loadFromFiles.mock.calls[0]?.[3]).toEqual({signal: expect.any(AbortSignal)});
+
+    controller.abort('action-skipped');
+    const loaded = model(['cancelled']);
+    pendingLoad.resolve(loaded);
+
+    await expect(registration).rejects.toMatchObject({name: 'AbortError'});
+    expect(loaded.model.dispose).toHaveBeenCalledOnce();
+    expect(loaded.posenetModel.dispose).toHaveBeenCalledOnce();
+    expect(composition.isPoseModelRegistered('Cancelled')).toBe(false);
+  });
+
+  it('forwards latency-first parallel initialization only when explicitly enabled', async () => {
+    const loaded = model();
+    const loadFromFiles = vi.fn(async () => loaded);
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: class {}, loadFromFiles},
+      createFile,
+      parallelModelInitialization: true
+    });
+
+    await composition.registerPoseModel({name: 'Parallel', files: files()});
+    expect(loadFromFiles.mock.calls[0]?.[3]).toEqual({
+      signal: expect.any(AbortSignal),
+      parallelModelInitialization: true
+    });
+  });
+
+  it('runs only the active and latest pending requests with latest-needed policy', async () => {
+    const firstLoad = deferred<ReturnType<typeof model>>();
+    const latestLoad = deferred<ReturnType<typeof model>>();
+    const loadFromFiles = vi
+      .fn()
+      .mockImplementationOnce(() => firstLoad.promise)
+      .mockImplementationOnce(() => latestLoad.promise);
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: class {}, loadFromFiles},
+      createFile,
+      modelInitializationPolicy: 'latest-needed'
+    });
+
+    const first = composition.registerPoseModel({name: 'A', files: files(1)});
+    await vi.waitFor(() => expect(loadFromFiles).toHaveBeenCalledOnce());
+    const intermediate = composition.registerPoseModel({name: 'B', files: files(2)});
+    const intermediateResult = intermediate.catch((error) => error);
+    const latest = composition.registerPoseModel({name: 'C', files: files(3)});
+
+    await expect(intermediateResult).resolves.toMatchObject({name: 'AbortError'});
+    expect(loadFromFiles).toHaveBeenCalledOnce();
+
+    const staleModel = model(['stale']);
+    firstLoad.resolve(staleModel);
+    await expect(first).rejects.toMatchObject({name: 'AbortError'});
+    expect(staleModel.model.dispose).toHaveBeenCalledOnce();
+    expect(staleModel.posenetModel.dispose).toHaveBeenCalledOnce();
+    await vi.waitFor(() => expect(loadFromFiles).toHaveBeenCalledTimes(2));
+
+    const latestModel = model(['latest']);
+    latestLoad.resolve(latestModel);
+    await expect(latest).resolves.toEqual({name: 'C', labels: ['latest']});
+    expect(composition.isPoseModelRegistered('A')).toBe(false);
+    expect(composition.isPoseModelRegistered('B')).toBe(false);
+    expect(composition.isPoseModelRegistered('C')).toBe(true);
+    const latestModelFile = loadFromFiles.mock.calls[1]?.[0] as TestFile;
+    expect([...latestModelFile.bytes]).toEqual([3, 1]);
+  });
+
+  it('deduplicates the same latest-needed model demand before runtime loading', async () => {
+    const pendingLoad = deferred<ReturnType<typeof model>>();
+    const loadFromFiles = vi.fn(() => pendingLoad.promise);
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: class {}, loadFromFiles},
+      createFile,
+      modelInitializationPolicy: 'latest-needed'
+    });
+    const firstInput = {name: 'SharedDemand', files: files(7)};
+    const first = composition.registerPoseModel(firstInput);
+    const duplicate = composition.registerPoseModel({
+      name: 'SharedDemand',
+      files: firstInput.files.map((file) => ({
+        path: file.path,
+        bytes: Uint8Array.from(file.bytes)
+      }))
+    });
+
+    expect(duplicate).toBe(first);
+    expect(loadFromFiles).toHaveBeenCalledOnce();
+    pendingLoad.resolve(model(['shared']));
+    await expect(Promise.all([first, duplicate])).resolves.toEqual([
+      {name: 'SharedDemand', labels: ['shared']},
+      {name: 'SharedDemand', labels: ['shared']}
+    ]);
+    expect(loadFromFiles).toHaveBeenCalledOnce();
+  });
+
+  it('settles active and pending latest-needed demands during releaseAll', async () => {
+    const activeLoad = deferred<ReturnType<typeof model>>();
+    const loadFromFiles = vi.fn(() => activeLoad.promise);
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: class {}, loadFromFiles},
+      createFile,
+      modelInitializationPolicy: 'latest-needed'
+    });
+    const active = composition.registerPoseModel({name: 'Active', files: files(1)});
+    await vi.waitFor(() => expect(loadFromFiles).toHaveBeenCalledOnce());
+    const pending = composition.registerPoseModel({name: 'Pending', files: files(2)});
+    const pendingResult = pending.catch((error) => error);
+    const release = composition.releaseAll();
+
+    await expect(pendingResult).resolves.toMatchObject({name: 'AbortError'});
+    expect(loadFromFiles).toHaveBeenCalledOnce();
+    const stale = model(['stale']);
+    activeLoad.resolve(stale);
+    await expect(active).rejects.toMatchObject({name: 'AbortError'});
+    await expect(release).resolves.toBeUndefined();
+    expect(stale.model.dispose).toHaveBeenCalledOnce();
+    expect(stale.posenetModel.dispose).toHaveBeenCalledOnce();
+    expect(loadFromFiles).toHaveBeenCalledOnce();
+  });
+
+  it('leaves no pending initialization after skipping to a non-pose path', async () => {
+    const pendingLoad = deferred<ReturnType<typeof model>>();
+    const loadFromFiles = vi.fn(() => pendingLoad.promise);
+    const controller = new AbortController();
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: class {}, loadFromFiles},
+      createFile,
+      modelInitializationPolicy: 'latest-needed'
+    });
+    const registration = composition.registerPoseModel(
+      {name: 'SkippedScene', files: files()},
+      {signal: controller.signal}
+    );
+    await vi.waitFor(() => expect(loadFromFiles).toHaveBeenCalledOnce());
+
+    controller.abort('non-pose-scene');
+    const skipped = model(['skipped']);
+    pendingLoad.resolve(skipped);
+    await expect(registration).rejects.toMatchObject({name: 'AbortError'});
+    await Promise.resolve();
+
+    expect(loadFromFiles).toHaveBeenCalledOnce();
+    expect(composition.isPoseModelRegistered('SkippedScene')).toBe(false);
+    expect(skipped.model.dispose).toHaveBeenCalledOnce();
+    expect(skipped.posenetModel.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('starts camera and model initialization independently', async () => {
+    const cameraSetup = deferred<void>();
+    const modelLoad = deferred<ReturnType<typeof model>>();
+    vi.mocked(document.querySelector).mockReturnValue(element());
+    const webcam = {
+      canvas: element('CANVAS'),
+      webcam: {srcObject: null},
+      setup: vi.fn(() => cameraSetup.promise),
+      play: vi.fn(async () => undefined),
+      update: vi.fn()
+    };
+    const loadFromFiles = vi.fn(() => modelLoad.promise);
+    const composition = createTMPoseComposition({
+      runtime: {
+        Webcam: vi.fn(function () { return webcam; }) as never,
+        loadFromFiles
+      },
+      createFile
+    });
+
+    const camera = composition.startCamera();
+    const registration = composition.registerPoseModel({name: 'Concurrent', files: files()});
+    await vi.waitFor(() => {
+      expect(webcam.setup).toHaveBeenCalledOnce();
+      expect(loadFromFiles).toHaveBeenCalledOnce();
+    });
+
+    cameraSetup.resolve();
+    modelLoad.resolve(model(['ready']));
+    await expect(Promise.all([camera, registration])).resolves.toEqual([
+      undefined,
+      {name: 'Concurrent', labels: ['ready']}
+    ]);
+    expect(webcam.play).toHaveBeenCalledOnce();
   });
 
   it('caches named models and isolates active state between instances', async () => {
