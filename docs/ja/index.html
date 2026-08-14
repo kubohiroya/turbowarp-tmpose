@@ -15,14 +15,15 @@
   <a class="skip-link" href="#main">本文へ移動</a>
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="./" aria-label="TMPose 1.9.0日本語ガイドの先頭">
+      <a class="brand" href="./" aria-label="TMPose 1.10.0日本語ガイドの先頭">
         <span class="brand-mark">TM</span>
         <span class="brand-label">TMPose</span>
-        <span class="version-badge" aria-hidden="true">v1.9.0</span>
+        <span class="version-badge" aria-hidden="true">v1.10.0</span>
       </a>
       <nav class="primary-nav" aria-label="ガイドの章">
         <a href="#quick-start">クイックスタート</a>
         <a href="#how-it-works">動作のしくみ</a>
+        <a href="#composition-hosts">Composition API</a>
         <a href="#block-guide">ブロック</a>
       </nav>
       <a class="github-link" href="https://github.com/kubohiroya/turbowarp-tmpose" aria-label="GitHubでソースを見る" title="GitHubでソースを見る">
@@ -174,6 +175,46 @@
           </ul>
         </article>
       </div>
+    </section>
+
+    <section class="section" id="composition-hosts" aria-labelledby="composition-hosts-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Composition host</p>
+          <h2 id="composition-hosts-title">物語でまだ必要なモデルだけを準備</h2>
+        </div>
+        <p>TMPose 1.10.0では、application hostが不要になったモデル要求をキャンセルしても、カメラ起動は独立して継続できます。最初の推論は、カメラと登録済みモデルの両方を待ちます。</p>
+      </div>
+
+      <div class="split-grid">
+        <article class="detail-card">
+          <h3>並行できる処理と同期点</h3>
+          <div class="pipeline" role="img" aria-label="PoseNet記述子を復号・検証してからPoseNetを初期化し、分類器とmetadataの読み込みと合流する流れ">
+            <div class="pipeline-node"><span class="pipeline-icon">#</span><div><strong>記述子</strong><small>復号 + SHA</small></div></div>
+            <span class="pipeline-arrow" aria-hidden="true">→</span>
+            <div class="pipeline-node"><span class="pipeline-icon">✓</span><div><strong>PoseNet</strong><small>検証済みbyteのみ</small></div></div>
+            <span class="pipeline-arrow" aria-hidden="true">→</span>
+            <div class="pipeline-node"><span class="pipeline-icon">+</span><div><strong>登録済み</strong><small>分類器と合流</small></div></div>
+          </div>
+          <p>PoseNetの別々のfileに対するSHA検証は並行です。共通記述子の検証と分類器loadは重ねて進みますが、未検証byteをTensorFlowへ渡しません。カメラの<code>getUserMedia()</code>と<code>video.play()</code>はモデル準備全体と並行できます。</p>
+        </article>
+        <article class="detail-card">
+          <h3>最新の必要モデルを優先</h3>
+          <div class="pipeline" role="img" aria-label="モデルAを実行中、Bを待機中にし、より新しいCが重い初期化開始前のBを置き換える流れ">
+            <div class="pipeline-node"><span class="pipeline-icon">A</span><div><strong>実行中</strong><small>安全境界でcancel</small></div></div>
+            <span class="pipeline-arrow" aria-hidden="true">→</span>
+            <div class="pipeline-node"><span class="pipeline-icon">B</span><div><strong>待機中</strong><small>初期化しない</small></div></div>
+            <span class="pipeline-arrow" aria-hidden="true">⇒</span>
+            <div class="pipeline-node"><span class="pipeline-icon">C</span><div><strong>最新</strong><small>解放後に開始</small></div></div>
+          </div>
+          <p><code>modelInitializationPolicy: 'latest-needed'</code>でCompositionを作り、<code>registerPoseModel()</code>へ<code>AbortSignal</code>を渡します。重い要求は実行中1件と最新待機1件までです。キャンセルしたモデルはregistryへ公開しません。</p>
+        </article>
+      </div>
+
+      <aside class="note">
+        <span class="note-icon" aria-hidden="true">i</span>
+        <p><strong>安全な既定値:</strong> <code>modelInitializationPolicy</code>は<code>legacy</code>、<code>parallelModelInitialization</code>は<code>false</code>が既定です。TensorFlow.jsとWeb Cryptoは進行中のすべての処理を物理的に中断できないため、TMPoseは後続phaseを止め、遅延して完了したresourceをexactly-onceで解放します。モデルのcancelだけでカメラを停止しません。</p>
+      </aside>
     </section>
 
     <section class="section tint" id="scores" aria-labelledby="scores-title">

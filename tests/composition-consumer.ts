@@ -4,7 +4,9 @@ import {
   type CameraDevice,
   type CameraPreference,
   type CameraSelection,
+  type PoseModelInitializationPolicy,
   type PoseModelRegistration,
+  type PoseModelRegistrationOptions,
   type PreviewMirroring,
   type PreviewPosition,
   type TMPoseComposition,
@@ -13,7 +15,12 @@ import {
 
 declare const runtime: TMPoseCompositionRuntime;
 
-const composition: TMPoseComposition = createTMPoseComposition({runtime});
+const initializationPolicy: PoseModelInitializationPolicy = 'latest-needed';
+const composition: TMPoseComposition = createTMPoseComposition({
+  runtime,
+  modelInitializationPolicy: initializationPolicy,
+  parallelModelInitialization: true
+});
 const previewMirroring: PreviewMirroring = 'unmirrored';
 composition.setPreviewMirroring(previewMirroring);
 const previewPosition: PreviewPosition = 'full-stage';
@@ -29,14 +36,21 @@ void composition.selectCamera(cameraPreference);
 void composition.selectCamera(cameraSelection);
 const currentCameraSelection: CameraSelection = composition.getCameraSelection();
 const activeCamera: Readonly<CameraDevice> | null = composition.getActiveCamera();
-const registration: Promise<PoseModelRegistration> = composition.registerPoseModel({
-  name: 'RescuePose',
-  files: [
-    {path: 'model.json', bytes: new Uint8Array([1])},
-    {path: 'weights.bin', bytes: new Uint8Array([2])},
-    {path: 'metadata.json', bytes: new Uint8Array([3])}
-  ]
-});
+const registrationController = new AbortController();
+const registrationOptions: PoseModelRegistrationOptions = {
+  signal: registrationController.signal
+};
+const registration: Promise<PoseModelRegistration> = composition.registerPoseModel(
+  {
+    name: 'RescuePose',
+    files: [
+      {path: 'model.json', bytes: new Uint8Array([1])},
+      {path: 'weights.bin', bytes: new Uint8Array([2])},
+      {path: 'metadata.json', bytes: new Uint8Array([3])}
+    ]
+  },
+  registrationOptions
+);
 composition.configureAccumulatedPose({
   accumulationPerSecond: 1,
   decayPerSecond: 0.9,

@@ -27,12 +27,20 @@ export type VerifiedPoseNetBundle = Readonly<{
 }>;
 export type TMPoseBrowserRuntime = Readonly<{
     Webcam: new (...args: any[]) => unknown;
-    loadFromFiles(model: unknown, weights: unknown, metadata: unknown): Promise<unknown>;
+    loadFromFiles(model: unknown, weights: unknown, metadata: unknown, options?: TMPoseRuntimeLoadOptions): Promise<unknown>;
+}>;
+export type TMPoseRuntimeLoadOptions = Readonly<{
+    signal?: AbortSignal;
+    parallelModelInitialization?: boolean;
 }>;
 export type BundledTMPoseRuntime = TMPoseBrowserRuntime & Readonly<{
     poseNetManifest: typeof poseNetBundleManifest;
 }>;
 type DigestRuntime = Pick<SubtleCrypto, 'digest'>;
+export type PoseNetOperationOptions = Readonly<{
+    subtleCrypto?: DigestRuntime;
+    signal?: AbortSignal;
+}>;
 type RuntimeGlobal = Record<PropertyKey, unknown> & {
     Response?: typeof Response;
     crypto?: {
@@ -114,24 +122,12 @@ export declare class TMPosePoseNetError extends Error {
     readonly code: string;
     constructor(code: string, message: string);
 }
-export declare function verifyPoseNetBundle(files: ReadonlyArray<PoseNetBundleFileInput>, { subtleCrypto }?: {
-    subtleCrypto?: DigestRuntime;
-}): Promise<VerifiedPoseNetBundle>;
-export declare function loadPoseNetBundle(loadFile: PoseNetBundleFileLoader, options?: {
-    subtleCrypto?: DigestRuntime;
-}): Promise<VerifiedPoseNetBundle>;
-export declare function createPoseNetProjectBundle(files: ReadonlyArray<PoseNetBundleFileInput>, options?: {
-    subtleCrypto?: DigestRuntime;
-}): Promise<PoseNetProjectBundle>;
-export declare function createPoseNetProjectBundleFromLoader(loadFile: PoseNetBundleFileLoader, options?: {
-    subtleCrypto?: DigestRuntime;
-}): Promise<PoseNetProjectBundle>;
-export declare function loadPoseNetProjectBundle(descriptor: unknown, options?: {
-    subtleCrypto?: DigestRuntime;
-}): Promise<VerifiedPoseNetBundle>;
-export declare function validatePoseNetProjectBundle(descriptor: unknown, options?: {
-    subtleCrypto?: DigestRuntime;
-}): Promise<PoseNetProjectBundle>;
+export declare function verifyPoseNetBundle(files: ReadonlyArray<PoseNetBundleFileInput>, { subtleCrypto, signal }?: PoseNetOperationOptions): Promise<VerifiedPoseNetBundle>;
+export declare function loadPoseNetBundle(loadFile: PoseNetBundleFileLoader, options?: PoseNetOperationOptions): Promise<VerifiedPoseNetBundle>;
+export declare function createPoseNetProjectBundle(files: ReadonlyArray<PoseNetBundleFileInput>, options?: PoseNetOperationOptions): Promise<PoseNetProjectBundle>;
+export declare function createPoseNetProjectBundleFromLoader(loadFile: PoseNetBundleFileLoader, options?: PoseNetOperationOptions): Promise<PoseNetProjectBundle>;
+export declare function loadPoseNetProjectBundle(descriptor: unknown, options?: PoseNetOperationOptions): Promise<VerifiedPoseNetBundle>;
+export declare function validatePoseNetProjectBundle(descriptor: unknown, options?: PoseNetOperationOptions): Promise<PoseNetProjectBundle>;
 export declare function createBundledTMPoseRuntime(options: {
     runtime: TMPoseBrowserRuntime;
     globalObject?: RuntimeGlobal;
@@ -139,5 +135,6 @@ export declare function createBundledTMPoseRuntime(options: {
     loadFiles?: () => ReadonlyArray<PoseNetBundleFileInput> | Promise<ReadonlyArray<PoseNetBundleFileInput>>;
     projectBundle?: PoseNetProjectBundle;
     subtleCrypto?: DigestRuntime;
+    parallelModelInitialization?: boolean;
 }): BundledTMPoseRuntime;
 export {};

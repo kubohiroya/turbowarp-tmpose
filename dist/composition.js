@@ -8,7 +8,7 @@ const FEATURE_FLAGS = {
   temporalPoseScoring: false,
   accumulatedPoseEvents: false
 };
-const version = "1.9.0";
+const version = "1.10.0";
 const packageMetadata = {
   version
 };
@@ -878,6 +878,7 @@ function compositionError(code, message) {
 function abortError(name) {
   const error = new Error(`TMPose model registration was cancelled: ${name}`);
   error.name = "AbortError";
+  Object.defineProperty(error, "code", { value: "TMPOSE-COMPOSITION-015" });
   return error;
 }
 function aggregateCompositionError(code, message, errors) {
@@ -937,6 +938,39 @@ function validateRuntime(value) {
     throw new TypeError("TMPose composition runtime must provide loadFromFiles and Webcam.");
   }
   return value;
+}
+function validateModelInitializationPolicy(value) {
+  if (value === void 0 || value === "legacy") return "legacy";
+  if (value === "latest-needed") return value;
+  throw new TypeError("modelInitializationPolicy must be legacy or latest-needed.");
+}
+function validateParallelModelInitialization(value) {
+  if (value === void 0 || value === false) return false;
+  if (value === true) return true;
+  throw new TypeError("parallelModelInitialization must be a boolean.");
+}
+function validateRegistrationOptions(value) {
+  if (value === void 0) return {};
+  if (!isRecord(value)) {
+    throw compositionError(
+      "TMPOSE-COMPOSITION-015",
+      "Pose model registration options must be an object."
+    );
+  }
+  if (Object.keys(value).some((key) => key !== "signal")) {
+    throw compositionError(
+      "TMPOSE-COMPOSITION-015",
+      "Pose model registration options may only provide signal."
+    );
+  }
+  const signal = value.signal;
+  if (signal !== void 0 && (!isRecord(signal) || typeof signal.aborted !== "boolean" || typeof signal.addEventListener !== "function" || typeof signal.removeEventListener !== "function")) {
+    throw compositionError(
+      "TMPOSE-COMPOSITION-015",
+      "Pose model registration signal must be an AbortSignal."
+    );
+  }
+  return signal === void 0 ? {} : { signal };
 }
 function validateAccumulatedPoseConfiguration(value) {
   if (!isRecord(value) || Object.keys(value).length !== 3 || !Object.hasOwn(value, "accumulationPerSecond") || !Object.hasOwn(value, "decayPerSecond") || !Object.hasOwn(value, "scoreThreshold")) {
@@ -1041,11 +1075,12 @@ function validateFiles(input, createFile) {
       throw compositionError("TMPOSE-COMPOSITION-002", `Unsupported pose model file: ${path}`);
     }
     const mimeType = path.endsWith(".json") ? "application/json" : "application/octet-stream";
-    const file = createFile(copyBytes(candidate.bytes, path), path, mimeType);
+    const bytes = copyBytes(candidate.bytes, path);
+    const file = createFile(bytes, path, mimeType);
     if (!isRecord(file) || file.name !== path) {
       throw compositionError("TMPOSE-COMPOSITION-003", `File factory returned an invalid ${path}.`);
     }
-    files.set(path, file);
+    files.set(path, { file, bytes });
   }
   const model = files.get("model.json");
   const metadata = files.get("metadata.json");
@@ -1056,13 +1091,38 @@ function validateFiles(input, createFile) {
       "A pose model must contain model.json, metadata.json, and exactly one weights .bin file."
     );
   }
-  return { model, weights: weights[0][1], metadata };
+  return {
+    model: model.file,
+    weights: weights[0][1].file,
+    metadata: metadata.file,
+    sourceBytes: Object.freeze({
+      model: model.bytes,
+      weights: weights[0][1].bytes,
+      metadata: metadata.bytes
+    })
+  };
+}
+function sameBytes(first, second) {
+  if (first.byteLength !== second.byteLength) return false;
+  for (let index = 0; index < first.byteLength; index += 1) {
+    if (first[index] !== second[index]) return false;
+  }
+  return true;
+}
+function sameValidatedFiles(first, second) {
+  return first.weights.name === second.weights.name && sameBytes(first.sourceBytes.model, second.sourceBytes.model) && sameBytes(first.sourceBytes.weights, second.sourceBytes.weights) && sameBytes(first.sourceBytes.metadata, second.sourceBytes.metadata);
 }
 function createTMPoseComposition(options) {
   if (!isRecord(options)) throw new TypeError("TMPose composition options must be an object.");
   const runtime = validateRuntime(options.runtime);
   const createFile = options.createFile ?? defaultCreateFile;
   if (typeof createFile !== "function") throw new TypeError("createFile must be a function.");
+  const modelInitializationPolicy = validateModelInitializationPolicy(
+    options.modelInitializationPolicy
+  );
+  const parallelModelInitialization = validateParallelModelInitialization(
+    options.parallelModelInitialization
+  );
   const accumulatedPoseListeners = /* @__PURE__ */ new Set();
   const extension = new TMPoseExtension(
     { temporalPoseScoring: true, accumulatedPoseEvents: true },
@@ -1083,6 +1143,7 @@ function createTMPoseComposition(options) {
   const models = /* @__PURE__ */ new Map();
   const versions = /* @__PURE__ */ new Map();
   const pendingRegistrations = /* @__PURE__ */ new Map();
+  const registrationRequests = /* @__PURE__ */ new Set();
   const modelDisposals = /* @__PURE__ */ new WeakMap();
   const activeModelDisposals = /* @__PURE__ */ new Set();
   const resourceDisposals = /* @__PURE__ */ new WeakMap();
@@ -1091,6 +1152,8 @@ function createTMPoseComposition(options) {
   let cameraSelectionQueue = Promise.resolve();
   let released = false;
   let releasePromise = null;
+  let latestActiveRequest = null;
+  let latestPendingRequest = null;
   function ensureActive() {
     if (released) {
       throw compositionError("TMPOSE-COMPOSITION-007", "TMPose composition has been released.");
@@ -1207,17 +1270,166 @@ function createTMPoseComposition(options) {
     activeName = null;
     return errors;
   }
+  function requestWasCancelled(request) {
+    return request.controller.signal.aborted || released || versions.get(request.name) !== request.version;
+  }
+  function settleRegistrationRequest(request, result) {
+    if (request.settled) return;
+    request.settled = true;
+    if (request.externalSignal && request.externalAbort) {
+      request.externalSignal.removeEventListener("abort", request.externalAbort);
+    }
+    registrationRequests.delete(request);
+    if ("registration" in result) request.resolve(result.registration);
+    else request.reject(result.error);
+  }
+  function cancelRegistrationRequest(request, reason) {
+    if (!request.controller.signal.aborted) request.controller.abort(reason);
+    if (latestPendingRequest === request) latestPendingRequest = null;
+    if (!request.started) {
+      settleRegistrationRequest(request, { error: abortError(request.name) });
+    }
+  }
+  async function executeRegistrationRequest(request) {
+    if (requestWasCancelled(request)) throw abortError(request.name);
+    let loaded;
+    try {
+      loaded = await runtime.loadFromFiles(
+        request.files.model,
+        request.files.weights,
+        request.files.metadata,
+        {
+          signal: request.controller.signal,
+          ...parallelModelInitialization ? { parallelModelInitialization: true } : {}
+        }
+      );
+    } catch (error) {
+      if (requestWasCancelled(request) && error?.name === "AbortError") {
+        throw abortError(request.name);
+      }
+      throw error;
+    }
+    if (!isRecord(loaded)) {
+      if (requestWasCancelled(request)) throw abortError(request.name);
+      throw compositionError(
+        "TMPOSE-COMPOSITION-004",
+        `TMPose failed to load model ${request.name}.`
+      );
+    }
+    const model = loaded;
+    if (!hasCompleteDisposalContract(model)) {
+      await disposeModel(model);
+    }
+    if (requestWasCancelled(request)) {
+      await disposeModel(model);
+      throw abortError(request.name);
+    }
+    let registration;
+    try {
+      registration = Object.freeze({ name: request.name, labels: labelsFor(model) });
+      if (activeName === request.name) extension.usePreparedModel(model);
+    } catch (error) {
+      await disposeModel(model);
+      throw error;
+    }
+    const previous = models.get(request.name);
+    models.set(request.name, { model, registration });
+    if (previous) await disposeModel(previous.model);
+    if (requestWasCancelled(request)) {
+      if (models.get(request.name)?.model === model) models.delete(request.name);
+      if (activeName === request.name) stopActiveModel(model);
+      await disposeModel(model);
+      throw abortError(request.name);
+    }
+    return registration;
+  }
+  function advanceLatestNeededQueue(request) {
+    if (latestActiveRequest !== request) return;
+    latestActiveRequest = null;
+    const next = latestPendingRequest;
+    latestPendingRequest = null;
+    if (!next || next.settled) return;
+    latestActiveRequest = next;
+    startRegistrationRequest(next);
+  }
+  function startRegistrationRequest(request) {
+    if (request.started || request.settled) return;
+    request.started = true;
+    void executeRegistrationRequest(request).then(
+      (registration) => settleRegistrationRequest(request, { registration }),
+      (error) => settleRegistrationRequest(request, { error })
+    ).finally(() => {
+      if (modelInitializationPolicy === "latest-needed") {
+        advanceLatestNeededQueue(request);
+      }
+    });
+  }
+  function scheduleRegistrationRequest(request) {
+    if (modelInitializationPolicy === "legacy") {
+      startRegistrationRequest(request);
+      return;
+    }
+    if (!latestActiveRequest) {
+      latestActiveRequest = request;
+      startRegistrationRequest(request);
+      return;
+    }
+    cancelRegistrationRequest(latestActiveRequest, "superseded");
+    if (latestPendingRequest) {
+      cancelRegistrationRequest(latestPendingRequest, "superseded");
+    }
+    latestPendingRequest = request;
+  }
+  function createRegistrationRequest(name, files, version2, externalSignal) {
+    let resolve;
+    let reject;
+    const promise = new Promise((resolvePromise, rejectPromise) => {
+      resolve = resolvePromise;
+      reject = rejectPromise;
+    });
+    const request = {
+      name,
+      files,
+      version: version2,
+      controller: new AbortController(),
+      externalSignal,
+      promise,
+      resolve,
+      reject,
+      started: false,
+      settled: false
+    };
+    registrationRequests.add(request);
+    if (externalSignal) {
+      request.externalAbort = () => cancelRegistrationRequest(request, externalSignal.reason);
+      externalSignal.addEventListener("abort", request.externalAbort, { once: true });
+      if (externalSignal.aborted) request.externalAbort();
+    }
+    return request;
+  }
+  function equivalentRegistrationRequest(name, files, externalSignal) {
+    if (modelInitializationPolicy !== "latest-needed") return void 0;
+    for (const request of registrationRequests) {
+      if (!request.settled && request.name === name && request.externalSignal === externalSignal && sameValidatedFiles(request.files, files)) {
+        return request;
+      }
+    }
+    return void 0;
+  }
   const composition = {
-    registerPoseModel(input) {
+    registerPoseModel(input, registrationOptions) {
       let name;
       let files;
       let version2;
+      let signal;
       try {
         ensureActive();
         if (!isRecord(input)) {
           throw compositionError("TMPOSE-COMPOSITION-001", "Pose model input must be an object.");
         }
         name = requireName(input.name);
+        ({ signal } = validateRegistrationOptions(registrationOptions));
+        if (signal?.aborted) throw abortError(name);
         files = validateFiles(input, createFile);
         if (activeName === name && extension.isPredicting()) {
           throw compositionError(
@@ -1225,37 +1437,16 @@ function createTMPoseComposition(options) {
             `Stop recognition before replacing active pose model ${name}.`
           );
         }
+        const equivalent = equivalentRegistrationRequest(name, files, signal);
+        if (equivalent) return equivalent.promise;
         version2 = nextVersion(name);
       } catch (error) {
         return Promise.reject(error);
       }
-      const operation = (async () => {
-        const loaded = await runtime.loadFromFiles(files.model, files.weights, files.metadata);
-        if (!isRecord(loaded)) {
-          throw compositionError("TMPOSE-COMPOSITION-004", `TMPose failed to load model ${name}.`);
-        }
-        const model = loaded;
-        if (!hasCompleteDisposalContract(model)) {
-          await disposeModel(model);
-        }
-        if (versions.get(name) !== version2) {
-          await disposeModel(model);
-          throw abortError(name);
-        }
-        let registration;
-        try {
-          registration = Object.freeze({ name, labels: labelsFor(model) });
-          if (activeName === name) extension.usePreparedModel(model);
-        } catch (error) {
-          await disposeModel(model);
-          throw error;
-        }
-        const previous = models.get(name);
-        models.set(name, { model, registration });
-        if (previous) await disposeModel(previous.model);
-        return registration;
-      })();
-      return trackRegistration(name, operation);
+      const request = createRegistrationRequest(name, files, version2, signal);
+      const operation = trackRegistration(name, request.promise);
+      if (!request.settled) scheduleRegistrationRequest(request);
+      return operation;
     },
     activatePoseModel(name) {
       ensureActive();
@@ -1281,6 +1472,11 @@ function createTMPoseComposition(options) {
       const normalizedName = requireName(name);
       nextVersion(normalizedName);
       const pending = [...pendingRegistrations.get(normalizedName) ?? []];
+      for (const request of registrationRequests) {
+        if (request.name === normalizedName) {
+          cancelRegistrationRequest(request, "model-released");
+        }
+      }
       const entry = models.get(normalizedName);
       const errors = [];
       if (entry) {
@@ -1309,6 +1505,9 @@ function createTMPoseComposition(options) {
         const pending = [...pendingRegistrations.values()].flatMap((operations) => [
           ...operations
         ]);
+        for (const request of [...registrationRequests]) {
+          cancelRegistrationRequest(request, "composition-released");
+        }
         const entries = [...models.values()].reverse();
         const activeEntry = activeName ? models.get(activeName) : null;
         models.clear();

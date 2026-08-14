@@ -49,7 +49,7 @@ with **Run extension without sandbox** enabled.
 The browser-ready, version-pinned build is also available from jsDelivr:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.9.0/dist/tmpose.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.10.0/dist/tmpose.js
 ```
 
 The standalone extension loads one reviewed browser runtime that contains one TensorFlow.js 1.3.1
@@ -57,13 +57,13 @@ module graph together with Teachable Machine Pose 0.8.3. Composite runtimes can 
 same artifact without rewriting a minified third-party bundle:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.9.0/dist/runtime.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.10.0/dist/runtime.js
 ```
 
 To add the published package to another project:
 
 ```sh
-pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.9.0
+pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.10.0
 ```
 
 ### Offline PoseNet bundle API
@@ -93,8 +93,11 @@ const offlineRuntime = createBundledTMPoseRuntime({
 });
 ```
 
-The model supply contains exactly 5,082,500 bytes. Tampering, missing or incorrectly sized files,
-and unexpected PoseNet network requests fail closed with `TMPOSE-POSENET-*` error codes.
+The model supply contains exactly 5,082,500 bytes. Its three SHA-256 operations run independently,
+and the first shared verification overlaps the Teachable Machine classifier load. The intercepted
+PoseNet fetch never exposes bytes until that verification succeeds. Later model requests reuse the
+same verified supply. Tampering, missing or incorrectly sized files, and unexpected PoseNet network
+requests fail closed with `TMPOSE-POSENET-*` error codes.
 
 ### Composition API
 
@@ -106,17 +109,26 @@ files.
 ```js
 import {createTMPoseComposition} from '@kubohiroya/turbowarp-tmpose/composition';
 
-const pose = createTMPoseComposition({runtime: bundledTMPoseRuntime});
+const pose = createTMPoseComposition({
+  runtime: bundledTMPoseRuntime,
+  modelInitializationPolicy: 'latest-needed',
+  // Optional latency-first mode; it remains off by default.
+  // parallelModelInitialization: true,
+});
 const cameras = await pose.listCameraDevices();
 if (cameras[0]) await pose.selectCamera({deviceId: cameras[0].deviceId});
-await pose.registerPoseModel({
-  name: 'RescuePose',
-  files: [
-    {path: 'model.json', bytes: modelBytes},
-    {path: 'weights.bin', bytes: weightsBytes},
-    {path: 'metadata.json', bytes: metadataBytes},
-  ],
-});
+const modelDemand = new AbortController();
+await pose.registerPoseModel(
+  {
+    name: 'RescuePose',
+    files: [
+      {path: 'model.json', bytes: modelBytes},
+      {path: 'weights.bin', bytes: weightsBytes},
+      {path: 'metadata.json', bytes: metadataBytes},
+    ],
+  },
+  {signal: modelDemand.signal},
+);
 pose.activatePoseModel('RescuePose');
 pose.setPreviewOpacity(0.2);
 pose.setPreviewPosition('full-stage');
@@ -140,6 +152,38 @@ idempotent unsubscribe function.
 `releasePoseModel(name)` stops recognition when the selected model is active and disposes only that
 model. It does not stop the camera stream. Camera capture is an independent lifecycle: stop it with
 `stopCamera()`, or release the complete composition with `releaseAll()`.
+
+The default `modelInitializationPolicy` is `legacy`, preserving independent registration calls.
+Opt in to `latest-needed` when a host has one current pose-model demand, such as a story that can
+skip scenes. At most one heavy runtime load is active and one latest request is pending. A newer
+request cancels the active request cooperatively and replaces an older request that has not started.
+For A loading, then B pending, then C requested, B never reaches the TensorFlow loader; A is cleaned
+up at its next safe boundary and only C starts afterward.
+Repeated `latest-needed` registrations with the same name, byte-identical files, and the same
+`AbortSignal` share one pending operation instead of invoking the runtime twice. Different signals
+remain separate demands so cancelling one caller cannot silently cancel another caller's work.
+
+Pass an optional `AbortSignal` to `registerPoseModel()` when the host no longer needs that demand. A
+queued request rejects with `AbortError` without invoking the runtime. TensorFlow.js 1.3.1 and Web
+Crypto do not expose physical cancellation for every operation already in progress, so a running
+request becomes stale immediately, starts no later phase where the runtime provides a boundary, and
+disposes every late classifier/PoseNet result exactly once before its promise settles. A cancelled
+model is never published in the registry. Shared fixed-PoseNet verification may finish and remain
+cached when the next latest request also needs it. Model cancellation does not stop the camera.
+
+TMPose does not infer scene or action reachability. A host should retain the signal when the same
+model is needed by an imminent action, abort it when a skipped path has no nearby pose demand, or
+submit the replacement model when a skip changes that demand. `releaseAll()` cancels both active and
+pending registration work and waits for safe cleanup.
+
+Runtime model phases remain sequential by default. Cancellation is checked after TensorFlow
+readiness, classifier loading, metadata parsing, and PoseNet loading, so a skipped demand does not
+start the next expensive phase. Set `parallelModelInitialization: true` on the composition or
+`createBundledTMPoseRuntime()` only when lower startup latency is more important than those phase
+boundaries. That opt-in starts classifier, metadata, and PoseNet initialization together; work
+already accepted by TensorFlow cannot be physically interrupted, but every completed stale resource
+is still disposed before cancellation settles. The `latest-needed` queue continues to permit only
+one active demand and one newest pending demand in either mode.
 
 `setPreviewMirroring('mirrored' | 'unmirrored')` changes only the camera preview. It can be called
 before camera startup, while the camera is running, or after it has stopped. The default remains

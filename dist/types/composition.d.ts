@@ -2,7 +2,10 @@ import { type AccumulatedPoseChangedEventV1 } from './extension.js';
 export type { AccumulatedPoseChangedEventV1 } from './extension.js';
 export interface TMPoseCompositionRuntime {
     Webcam: new (width: number, height: number, flipHorizontal: boolean) => unknown;
-    loadFromFiles(model: File, weights: File, metadata: File): Promise<unknown>;
+    loadFromFiles(model: File, weights: File, metadata: File, options?: Readonly<{
+        signal?: AbortSignal;
+        parallelModelInitialization?: boolean;
+    }>): Promise<unknown>;
 }
 export interface PoseModelFileInput {
     path: unknown;
@@ -16,6 +19,10 @@ export interface PoseModelRegistration {
     readonly name: string;
     readonly labels: ReadonlyArray<string>;
 }
+export interface PoseModelRegistrationOptions {
+    signal?: AbortSignal;
+}
+export type PoseModelInitializationPolicy = 'legacy' | 'latest-needed';
 export interface AccumulatedPoseConfiguration {
     accumulationPerSecond: number;
     decayPerSecond: number;
@@ -33,7 +40,7 @@ export interface CameraDevice {
 }
 export type AccumulatedPoseListener = (event: Readonly<AccumulatedPoseChangedEventV1>) => void;
 export interface TMPoseComposition {
-    registerPoseModel(input: PoseModelRegistrationInput): Promise<PoseModelRegistration>;
+    registerPoseModel(input: PoseModelRegistrationInput, options?: PoseModelRegistrationOptions): Promise<PoseModelRegistration>;
     activatePoseModel(name: unknown): void;
     releasePoseModel(name: unknown): Promise<void>;
     releaseAll(): Promise<void>;
@@ -68,5 +75,7 @@ export interface TMPoseComposition {
 export interface TMPoseCompositionOptions {
     runtime: TMPoseCompositionRuntime;
     createFile?: (bytes: Uint8Array, name: string, mimeType: string) => File;
+    modelInitializationPolicy?: PoseModelInitializationPolicy;
+    parallelModelInitialization?: boolean;
 }
 export declare function createTMPoseComposition(options: TMPoseCompositionOptions): TMPoseComposition;
