@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {DOCS_URI, TMPoseExtension, VERSION} from '../src/extension.js';
+import {BLOCK_ICON_URI, DOCS_URI, TMPoseExtension, VERSION} from '../src/extension.js';
 import packageMetadata from '../package.json' with {type: 'json'};
 
 const visibleRect = {left: 0, top: 0, right: 480, bottom: 360, width: 480, height: 360};
@@ -76,12 +76,18 @@ describe('TMPoseExtension', () => {
     const info = new TMPoseExtension().getInfo() as {
       id: string;
       docsURI: string;
+      blockIconURI: string;
       blocks: unknown[];
       menus: {cameraMenu: {items: string}};
     };
     expect(info.id).toBe('tmpose');
     expect(info.docsURI).toBe(DOCS_URI);
     expect(info.docsURI).toBe('https://kubohiroya.github.io/turbowarp-tmpose/');
+    expect(info.blockIconURI).toBe(BLOCK_ICON_URI);
+    const iconSvg = decodeURIComponent(BLOCK_ICON_URI.slice('data:image/svg+xml,'.length));
+    expect(iconSvg).toContain('viewBox="0 0 64 64"');
+    expect(iconSvg).toContain('<circle cx="32" cy="18" r="5"/>');
+    expect(iconSvg).not.toContain('<rect');
     expect(new TMPoseExtension().versionReporter()).toBe(VERSION);
     expect(VERSION).toBe(`${packageMetadata.version}-typescript`);
     expect(info.blocks).toHaveLength(31);
