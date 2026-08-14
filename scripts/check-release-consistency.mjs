@@ -3,7 +3,6 @@ import process from 'node:process';
 
 const packageMetadata = JSON.parse(await readFile('package.json', 'utf8'));
 const version = packageMetadata.version;
-const runtimeVersion = `${version}-typescript`;
 const pinnedPackage = `@kubohiroya/turbowarp-tmpose@${version}`;
 const errors = [];
 
@@ -25,8 +24,11 @@ for (const path of ['docs/index.html', 'docs/ja/index.html']) {
 
 for (const path of ['dist/tmpose.js', 'dist/composition.js']) {
   const source = await readFile(path, 'utf8');
-  if (!source.includes(runtimeVersion)) {
-    errors.push(`${path} must contain runtime version ${runtimeVersion}`);
+  if (!source.includes(`version = "${version}"`)) {
+    errors.push(`${path} must embed package version ${version}`);
+  }
+  if (!source.includes('packageMetadata.version}-typescript')) {
+    errors.push(`${path} must derive the runtime version from package metadata`);
   }
 }
 
