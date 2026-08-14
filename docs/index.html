@@ -23,6 +23,7 @@
       <nav class="primary-nav" aria-label="Guide sections">
         <a href="#quick-start">Quick start</a>
         <a href="#how-it-works">How it works</a>
+        <a href="#composition-hosts">Composition API</a>
         <a href="#block-guide">Blocks</a>
       </nav>
       <a class="github-link" href="https://github.com/kubohiroya/turbowarp-tmpose" aria-label="View source on GitHub" title="View source on GitHub">
@@ -174,6 +175,46 @@
           </ul>
         </article>
       </div>
+    </section>
+
+    <section class="section" id="composition-hosts" aria-labelledby="composition-hosts-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Composition hosts</p>
+          <h2 id="composition-hosts-title">Prepare only the model the story still needs</h2>
+        </div>
+        <p>TMPose 1.10.0 lets an application host cancel obsolete model demand while camera startup continues independently. The first inference waits for both the camera and one registered model.</p>
+      </div>
+
+      <div class="split-grid">
+        <article class="detail-card">
+          <h3>Independent work and synchronization</h3>
+          <div class="pipeline" role="img" aria-label="PoseNet descriptor is decoded and verified before PoseNet initialization, while classifier and metadata loading join the same model request">
+            <div class="pipeline-node"><span class="pipeline-icon">#</span><div><strong>Descriptor</strong><small>decode + SHA</small></div></div>
+            <span class="pipeline-arrow" aria-hidden="true">→</span>
+            <div class="pipeline-node"><span class="pipeline-icon">✓</span><div><strong>PoseNet</strong><small>verified bytes only</small></div></div>
+            <span class="pipeline-arrow" aria-hidden="true">→</span>
+            <div class="pipeline-node"><span class="pipeline-icon">+</span><div><strong>Registered</strong><small>joins classifier</small></div></div>
+          </div>
+          <p>SHA checks for separate PoseNet files run in parallel. Shared descriptor verification overlaps classifier loading, but unverified bytes never reach TensorFlow. Camera <code>getUserMedia()</code> and <code>video.play()</code> may run alongside the complete model path.</p>
+        </article>
+        <article class="detail-card">
+          <h3>Latest-needed wins</h3>
+          <div class="pipeline" role="img" aria-label="Model A is active, B is pending, and newer model C replaces B before heavy initialization starts">
+            <div class="pipeline-node"><span class="pipeline-icon">A</span><div><strong>Active</strong><small>cancel at safe boundary</small></div></div>
+            <span class="pipeline-arrow" aria-hidden="true">→</span>
+            <div class="pipeline-node"><span class="pipeline-icon">B</span><div><strong>Pending</strong><small>never starts</small></div></div>
+            <span class="pipeline-arrow" aria-hidden="true">⇒</span>
+            <div class="pipeline-node"><span class="pipeline-icon">C</span><div><strong>Newest</strong><small>starts after cleanup</small></div></div>
+          </div>
+          <p>Create the composition with <code>modelInitializationPolicy: 'latest-needed'</code> and pass an <code>AbortSignal</code> to <code>registerPoseModel()</code>. At most one heavy request is active and one newest request is pending. A cancelled model is never published to the registry.</p>
+        </article>
+      </div>
+
+      <aside class="note">
+        <span class="note-icon" aria-hidden="true">i</span>
+        <p><strong>Safe defaults:</strong> <code>modelInitializationPolicy</code> defaults to <code>legacy</code>, and <code>parallelModelInitialization</code> defaults to <code>false</code>. TensorFlow.js and Web Crypto cannot physically abort every operation already in progress; TMPose stops later phases and disposes every late resource exactly once. Cancelling model work does not stop the camera.</p>
+      </aside>
     </section>
 
     <section class="section tint" id="scores" aria-labelledby="scores-title">

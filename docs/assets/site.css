@@ -901,6 +901,10 @@ footer {
     width: min(100% - 24px, 1160px);
   }
 
+  .topbar-inner {
+    gap: 8px;
+  }
+
   .primary-nav {
     display: none;
   }
@@ -914,6 +918,10 @@ footer {
     padding: 6px 10px;
     border-color: var(--line);
     background: white;
+  }
+
+  .github-label {
+    display: none;
   }
 
   .brand-label {
