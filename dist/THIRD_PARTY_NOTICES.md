@@ -1,11 +1,15 @@
 # Third-party notices
 
-The reviewed browser runtime (`dist/runtime.js`) includes the following software:
+The reviewed browser runtime (`dist/runtime.js`) and fixed offline PoseNet model
+supply (`dist/posenet/`) include the following software and model data:
 
 - TensorFlow.js 1.3.1, Copyright Google LLC, licensed under Apache-2.0.
   Source: https://github.com/tensorflow/tfjs/tree/tfjs-v1.3.1
 - Teachable Machine Pose 0.8.3, Copyright Google LLC, licensed under
   Apache-2.0. Source: https://github.com/googlecreativelab/teachablemachine-community-js
+- PoseNet 2.2.2 runtime and MobileNetV1 0.75 / stride 16 model data,
+  Copyright Google LLC, licensed under Apache-2.0.
+  Source: https://github.com/tensorflow/tfjs-models/tree/v2.2.2/posenet
 
 The Apache License 2.0 applies to those third-party components. The license text
 is available at https://www.apache.org/licenses/LICENSE-2.0 and is reproduced

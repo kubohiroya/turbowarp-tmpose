@@ -31,7 +31,13 @@ try {
   for (const output of [
     'dist/tmpose.js',
     'dist/composition.js',
-    'dist/types/composition.d.ts'
+    'dist/runtime.js',
+    'dist/posenet.js',
+    'dist/posenet/mobilenet-v1-075-stride16/model-stride16.json',
+    'dist/posenet/mobilenet-v1-075-stride16/group1-shard1of2.bin',
+    'dist/posenet/mobilenet-v1-075-stride16/group1-shard2of2.bin',
+    'dist/types/composition.d.ts',
+    'dist/types/posenet.d.ts'
   ]) {
     await access(path.join(archiveRoot, output));
   }

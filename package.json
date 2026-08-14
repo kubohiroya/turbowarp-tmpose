@@ -1,6 +1,6 @@
 {
   "name": "@kubohiroya/turbowarp-tmpose",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "description": "A TurboWarp extension for camera-based pose recognition using Teachable Machine Pose models.",
   "author": "Hiroya Kubo <hiroya@cuc.ac.jp>",
   "license": "MPL-2.0",
@@ -17,6 +17,11 @@
       "types": "./dist/types/composition.d.ts",
       "import": "./dist/composition.js"
     },
+    "./posenet": {
+      "types": "./dist/types/posenet.d.ts",
+      "import": "./dist/posenet.js"
+    },
+    "./posenet-assets/*": "./dist/posenet/mobilenet-v1-075-stride16/*",
     "./runtime": "./dist/runtime.js",
     "./dist/tmpose.js": "./dist/tmpose.js",
     "./package.json": "./package.json"
@@ -38,12 +43,14 @@
   "scripts": {
     "dev": "vite build --watch",
     "typecheck": "tsc --noEmit",
-    "build": "pnpm build:extension && pnpm build:composition && pnpm build:runtime && pnpm build:types",
+    "build": "pnpm build:extension && pnpm build:composition && pnpm build:runtime && pnpm build:posenet && pnpm build:types",
     "build:extension": "vite build",
     "build:composition": "vite build --config vite.composition.config.ts",
     "build:runtime": "vite build --config vite.runtime.config.ts && node scripts/copy-third-party-notices.mjs",
+    "build:posenet": "vite build --config vite.posenet.config.ts && node scripts/copy-posenet-assets.mjs",
     "build:types": "tsc --project tsconfig.build.json",
     "types:composition:check": "tsc --project tsconfig.composition-consumer.json",
+    "types:posenet:check": "tsc --project tsconfig.posenet-consumer.json",
     "test": "vitest run",
     "docs": "node scripts/generate-readme.mjs",
     "docs:check": "npm run docs && git diff --exit-code -- README.md",
@@ -53,7 +60,7 @@
     "archive:check": "node scripts/check-github-archive.mjs",
     "pack:check": "npm pack --dry-run --ignore-scripts",
     "release:check": "npm publish --dry-run --access public",
-    "check": "npm run typecheck && npm run test && npm run build && npm run types:composition:check && npm run docs:check && npm run docs:pages:check && npm run release:consistency:check && npm run check:dist && npm run archive:check && npm run pack:check",
+    "check": "npm run typecheck && npm run test && npm run build && npm run types:composition:check && npm run types:posenet:check && npm run docs:check && npm run docs:pages:check && npm run release:consistency:check && npm run check:dist && npm run archive:check && npm run pack:check",
     "prepack": "npm run build && npm run release:consistency:check"
   },
   "devDependencies": {

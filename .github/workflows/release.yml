@@ -36,6 +36,10 @@ jobs:
             dist/tmpose.js
             dist/composition.js
             dist/runtime.js
+            dist/posenet.js
+            dist/posenet/mobilenet-v1-075-stride16/model-stride16.json
+            dist/posenet/mobilenet-v1-075-stride16/group1-shard1of2.bin
+            dist/posenet/mobilenet-v1-075-stride16/group1-shard2of2.bin
             dist/THIRD_PARTY_NOTICES.md
             kubohiroya-turbowarp-tmpose-*.tgz
             turbowarp-tmpose.zip
