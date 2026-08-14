@@ -1,6 +1,6 @@
 {
   "name": "@kubohiroya/turbowarp-tmpose",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "A TurboWarp extension for camera-based pose recognition using Teachable Machine Pose models.",
   "author": "Hiroya Kubo <hiroya@cuc.ac.jp>",
   "license": "MPL-2.0",
@@ -17,6 +17,7 @@
       "types": "./dist/types/composition.d.ts",
       "import": "./dist/composition.js"
     },
+    "./runtime": "./dist/runtime.js",
     "./dist/tmpose.js": "./dist/tmpose.js",
     "./package.json": "./package.json"
   },
@@ -24,7 +25,8 @@
   "files": [
     "dist/",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "unpkg": "./dist/tmpose.js",
   "jsdelivr": "./dist/tmpose.js",
@@ -36,9 +38,10 @@
   "scripts": {
     "dev": "vite build --watch",
     "typecheck": "tsc --noEmit",
-    "build": "pnpm build:extension && pnpm build:composition && pnpm build:types",
+    "build": "pnpm build:extension && pnpm build:composition && pnpm build:runtime && pnpm build:types",
     "build:extension": "vite build",
     "build:composition": "vite build --config vite.composition.config.ts",
+    "build:runtime": "vite build --config vite.runtime.config.ts && node scripts/copy-third-party-notices.mjs",
     "build:types": "tsc --project tsconfig.build.json",
     "types:composition:check": "tsc --project tsconfig.composition-consumer.json",
     "test": "vitest run",
@@ -55,6 +58,8 @@
   },
   "devDependencies": {
     "@kubohiroya/vite-plugin-turbowarp-extension": "0.1.0",
+    "@teachablemachine/pose": "0.8.3",
+    "@tensorflow/tfjs": "1.3.1",
     "typescript": "^5.9.3",
     "vite": "^7.0.0",
     "vitest": "^4.0.14"
