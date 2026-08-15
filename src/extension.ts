@@ -179,6 +179,24 @@ function isDocumentHidden(): boolean {
   return typeof document !== 'undefined' && document.visibilityState === 'hidden';
 }
 
+/**
+ * Initialize the camera canvas before Teachable Machine or TensorFlow.js requests its context.
+ * The same canvas is drawn once per frame and then read back by fromPixels(), so the first context
+ * request must declare that readback workload. Later getContext('2d') calls return this context.
+ */
+export function initializeCameraReadbackContext(canvas: unknown): CanvasRenderingContext2D {
+  if (
+    typeof canvas !== 'object' ||
+    canvas === null ||
+    typeof (canvas as {getContext?: unknown}).getContext !== 'function'
+  ) {
+    throw new Error('TMPose: Webcam canvas does not provide a 2D context.');
+  }
+  const context = (canvas as HTMLCanvasElement).getContext('2d', {willReadFrequently: true});
+  if (!context) throw new Error('TMPose: Webcam canvas 2D context is unavailable.');
+  return context;
+}
+
 export class TMPoseExtension {
   [key: string]: any;
 
@@ -328,6 +346,7 @@ export class TMPoseExtension {
       const constraints = cameraConstraints(this.resolvedCameraSelection());
       if (constraints) await this.webcam.setup(constraints);
       else await this.webcam.setup();
+      initializeCameraReadbackContext(this.webcam.canvas);
       await this.webcam.play();
       this.attachPreviewToStage();
       this.cameraRunning = true;

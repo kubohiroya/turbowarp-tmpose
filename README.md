@@ -49,7 +49,7 @@ with **Run extension without sandbox** enabled.
 The browser-ready, version-pinned build is also available from jsDelivr:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.10.0/dist/tmpose.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.10.1/dist/tmpose.js
 ```
 
 The standalone extension loads one reviewed browser runtime that contains one TensorFlow.js 1.3.1
@@ -57,13 +57,13 @@ module graph together with Teachable Machine Pose 0.8.3. Composite runtimes can 
 same artifact without rewriting a minified third-party bundle:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.10.0/dist/runtime.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.10.1/dist/runtime.js
 ```
 
 To add the published package to another project:
 
 ```sh
-pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.10.0
+pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.10.1
 ```
 
 ### Offline PoseNet bundle API
@@ -213,6 +213,12 @@ switch restores the preceding successful camera and selection. Invalid selection
 running. TMPose never persists device IDs. `releaseAll()` rejects queued selection work, waits for
 an in-progress switch to become quiescent, and then stops the final stream; all four camera-device
 methods fail closed after release.
+
+TMPose owns the camera canvas used by Teachable Machine Pose and TensorFlow.js. It initializes only
+that canvas with a readback-optimized 2D context before the first frame so repeated
+`fromPixels()` calls do not require a downstream Canvas prototype patch. Preview rendering and
+model input continue to use the same canvas. Roll back by pinning the preceding TMPose version;
+do not replace this boundary with global Canvas or Console interception.
 
 Teachable Machine Pose 0.8.3 exposes the classifier as `CustomPoseNet.model` and PoseNet as
 `CustomPoseNet.posenetModel`, while its top-level `dispose()` releases PoseNet only. The composition

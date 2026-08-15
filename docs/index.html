@@ -15,10 +15,10 @@
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="./" aria-label="TMPose 1.10.0 user guide home">
+      <a class="brand" href="./" aria-label="TMPose 1.10.1 user guide home">
         <span class="brand-mark">TM</span>
         <span class="brand-label">TMPose</span>
-        <span class="version-badge" aria-hidden="true">v1.10.0</span>
+        <span class="version-badge" aria-hidden="true">v1.10.1</span>
       </a>
       <nav class="primary-nav" aria-label="Guide sections">
         <a href="#quick-start">Quick start</a>
@@ -94,7 +94,7 @@
         <p>
           Click the documentation button immediately below the <strong>TMPose</strong> member
           heading. The bundled blocks retain the model URL, recognition, preview, label, score,
-          threshold, and lifecycle behavior described here. Version 1.10.0's latest-needed model
+          threshold, and lifecycle behavior described here. Version 1.10.1's latest-needed model
           initialization and cancellation controls are host APIs and are documented under
           Composition API.
         </p>
@@ -176,6 +176,7 @@
         <article class="detail-card">
           <h3>The preview sits on the stage</h3>
           <p>The preview is a camera canvas placed over the TurboWarp stage. It does not become a sprite and does not change model input when hidden. It is mirrored by default, and can switch between <code>mirrored</code> and <code>unmirrored</code> while the camera is running without changing recognition input.</p>
+          <p>TMPose initializes this owned camera canvas for repeated TensorFlow <code>fromPixels()</code> readback before the first frame. Other TurboWarp canvases are unchanged, and hosts do not need a global Canvas patch.</p>
           <div class="mini-stage" aria-label="Preview in the bottom-right of the stage"><span class="preview-window">camera</span></div>
           <div class="position-list" aria-label="Available preview positions">
             <span>top-left</span><span>top-right</span><span>bottom-left</span><span>bottom-right</span><span>center</span><span>full-stage</span>
@@ -200,7 +201,7 @@
           <p class="eyebrow">Composition hosts</p>
           <h2 id="composition-hosts-title">Prepare only the model the story still needs</h2>
         </div>
-        <p>TMPose 1.10.0 lets an application host cancel obsolete model demand while camera startup continues independently. The first inference waits for both the camera and one registered model.</p>
+        <p>TMPose 1.10.1 lets an application host cancel obsolete model demand while camera startup continues independently. The first inference waits for both the camera and one registered model.</p>
       </div>
 
       <div class="split-grid">

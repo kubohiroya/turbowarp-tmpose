@@ -15,10 +15,10 @@
   <a class="skip-link" href="#main">本文へ移動</a>
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="./" aria-label="TMPose 1.10.0日本語ガイドの先頭">
+      <a class="brand" href="./" aria-label="TMPose 1.10.1日本語ガイドの先頭">
         <span class="brand-mark">TM</span>
         <span class="brand-label">TMPose</span>
-        <span class="version-badge" aria-hidden="true">v1.10.0</span>
+        <span class="version-badge" aria-hidden="true">v1.10.1</span>
       </a>
       <nav class="primary-nav" aria-label="ガイドの章">
         <a href="#quick-start">クイックスタート</a>
@@ -94,7 +94,7 @@
         <p>
           <strong>TMPose</strong>見出し直下のドキュメントボタンを押します。集約されたブロックも、
           ここで説明するモデルURL、認識、プレビュー、ラベル、スコア、しきい値、ライフサイクルの
-          動作を保ちます。1.10.0のlatest-neededモデル初期化とキャンセル制御はhost向けAPIなので、
+          動作を保ちます。1.10.1のlatest-neededモデル初期化とキャンセル制御はhost向けAPIなので、
           Composition APIの章で説明します。
         </p>
       </div>
@@ -175,6 +175,7 @@
         <article class="detail-card">
           <h3>プレビューはステージ上に表示</h3>
           <p>カメラのキャンバスを TurboWarp のステージ上に重ねて表示します。スプライトにはなりません。また、非表示にしてもモデルへの入力は変わりません。既定は左右反転表示です。カメラの動作中でも <code>mirrored</code> と <code>unmirrored</code> を切り替えられ、認識入力の向きは変わりません。</p>
+          <p>TMPoseは、所有するこのカメラCanvasだけを最初のframeより前にTensorFlow <code>fromPixels()</code>の反復readback向けに初期化します。他のTurboWarp Canvasは変更せず、host側の全体Canvas patchも不要です。</p>
           <div class="mini-stage" aria-label="ステージの右下にあるプレビュー"><span class="preview-window">カメラ</span></div>
           <div class="position-list" aria-label="プレビューを置ける位置">
             <span>左上</span><span>右上</span><span>左下</span><span>右下</span><span>中央</span><span>ステージ全体</span>
@@ -199,7 +200,7 @@
           <p class="eyebrow">Composition host</p>
           <h2 id="composition-hosts-title">物語でまだ必要なモデルだけを準備</h2>
         </div>
-        <p>TMPose 1.10.0では、application hostが不要になったモデル要求をキャンセルしても、カメラ起動は独立して継続できます。最初の推論は、カメラと登録済みモデルの両方を待ちます。</p>
+        <p>TMPose 1.10.1では、application hostが不要になったモデル要求をキャンセルしても、カメラ起動は独立して継続できます。最初の推論は、カメラと登録済みモデルの両方を待ちます。</p>
       </div>
 
       <div class="split-grid">
