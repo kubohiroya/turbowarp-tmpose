@@ -19,6 +19,7 @@ function createElement(tagName = 'DIV', rect = visibleRect) {
     parentNode: null,
     width: tagName === 'CANVAS' ? 480 : undefined,
     height: tagName === 'CANVAS' ? 360 : undefined,
+    getContext: tagName === 'CANVAS' ? vi.fn(() => ({})) : undefined,
     getBoundingClientRect: vi.fn(() => rect),
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
@@ -556,6 +557,8 @@ describe('TMPoseExtension', () => {
     await extension.startCamera();
 
     expect(setup).toHaveBeenCalledWith({facingMode: {ideal: 'user'}});
+    expect(canvas.getContext).toHaveBeenCalledOnce();
+    expect(canvas.getContext).toHaveBeenCalledWith('2d', {willReadFrequently: true});
     expect(extension.cameraDeviceIdReporter()).toBe('front-id');
     expect(extension.cameraDeviceNameReporter()).toBe('Built-in Front Camera');
   });

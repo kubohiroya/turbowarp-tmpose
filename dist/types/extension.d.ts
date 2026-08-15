@@ -24,6 +24,12 @@ export interface AccumulatedPoseChangedEventV1 {
 }
 export declare const BROWSER_RUNTIME_URL: string;
 export declare function loadScript(src: string): Promise<void>;
+/**
+ * Initialize the camera canvas before Teachable Machine or TensorFlow.js requests its context.
+ * The same canvas is drawn once per frame and then read back by fromPixels(), so the first context
+ * request must declare that readback workload. Later getContext('2d') calls return this context.
+ */
+export declare function initializeCameraReadbackContext(canvas: unknown): CanvasRenderingContext2D;
 export declare class TMPoseExtension {
     [key: string]: any;
     constructor(featureFlags?: Partial<FeatureFlags>, dependencies?: TMPoseExtensionDependencies);

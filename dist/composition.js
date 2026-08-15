@@ -8,7 +8,7 @@ const FEATURE_FLAGS = {
   temporalPoseScoring: false,
   accumulatedPoseEvents: false
 };
-const version = "1.10.0";
+const version = "1.10.1";
 const packageMetadata = {
   version
 };
@@ -144,6 +144,14 @@ function canvasScore(width, height) {
 }
 function isDocumentHidden() {
   return typeof document !== "undefined" && document.visibilityState === "hidden";
+}
+function initializeCameraReadbackContext(canvas) {
+  if (typeof canvas !== "object" || canvas === null || typeof canvas.getContext !== "function") {
+    throw new Error("TMPose: Webcam canvas does not provide a 2D context.");
+  }
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("TMPose: Webcam canvas 2D context is unavailable.");
+  return context;
 }
 class TMPoseExtension {
   constructor(featureFlags = {}, dependencies = {}) {
@@ -285,6 +293,7 @@ class TMPoseExtension {
       const constraints = cameraConstraints(this.resolvedCameraSelection());
       if (constraints) await this.webcam.setup(constraints);
       else await this.webcam.setup();
+      initializeCameraReadbackContext(this.webcam.canvas);
       await this.webcam.play();
       this.attachPreviewToStage();
       this.cameraRunning = true;

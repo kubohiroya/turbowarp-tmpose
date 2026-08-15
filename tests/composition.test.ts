@@ -47,6 +47,7 @@ function element(tagName = 'DIV') {
     parentNode: null,
     width: tagName === 'CANVAS' ? 480 : undefined,
     height: tagName === 'CANVAS' ? 360 : undefined,
+    getContext: tagName === 'CANVAS' ? vi.fn(() => ({})) : undefined,
     getBoundingClientRect: vi.fn(() => ({
       left: 0, top: 0, right: 480, bottom: 360, width: 480, height: 360
     })),
@@ -406,6 +407,8 @@ describe('TMPose composition API', () => {
       {name: 'Concurrent', labels: ['ready']}
     ]);
     expect(webcam.play).toHaveBeenCalledOnce();
+    expect(webcam.canvas.getContext).toHaveBeenCalledOnce();
+    expect(webcam.canvas.getContext).toHaveBeenCalledWith('2d', {willReadFrequently: true});
   });
 
   it('caches named models and isolates active state between instances', async () => {
