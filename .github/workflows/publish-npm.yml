@@ -1,0 +1,43 @@
+name: Publish npm package
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Annotated release tag to publish
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+          registry-url: https://registry.npmjs.org
+      - run: corepack enable
+      - run: npm install --global npm@11.5.1
+      - run: pnpm install --frozen-lockfile
+      - name: Verify the requested tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          node -e 'const tag = process.env.RELEASE_TAG; const version = require("./package.json").version; if (tag !== `v${version}`) throw new Error(`Tag ${tag} does not match package ${version}.`);'
+          test "$(git describe --tags --exact-match)" = "$RELEASE_TAG"
+      - run: pnpm check
+      - run: npm publish --access public
