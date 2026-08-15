@@ -3,6 +3,7 @@ import {
   BLOCK_ICON_URI,
   BROWSER_RUNTIME_URL,
   DOCS_URI,
+  initializeCameraReadbackContext,
   TMPoseExtension,
   VERSION
 } from '../src/extension.js';
@@ -77,6 +78,42 @@ beforeEach(() => {
 });
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe('initializeCameraReadbackContext', () => {
+  it('requests frequent readback only for the TensorFlow CPU backend', () => {
+    const canvas = createElement('CANVAS');
+
+    initializeCameraReadbackContext(canvas, 'cpu');
+
+    expect(canvas.getContext).toHaveBeenCalledWith('2d', {willReadFrequently: true});
+  });
+
+  it('uses the active backend reported by the loaded TensorFlow runtime', () => {
+    const canvas = createElement('CANVAS');
+    vi.stubGlobal('tf', {getBackend: vi.fn(() => 'cpu')});
+
+    initializeCameraReadbackContext(canvas);
+
+    expect(canvas.getContext).toHaveBeenCalledWith('2d', {willReadFrequently: true});
+  });
+
+  it.each(['webgl', null])('uses a normal 2D context for the %s backend', (backend) => {
+    const canvas = createElement('CANVAS');
+
+    initializeCameraReadbackContext(canvas, backend);
+
+    expect(canvas.getContext).toHaveBeenCalledWith('2d');
+  });
+
+  it('falls back to a normal context when the backend query fails', () => {
+    const canvas = createElement('CANVAS');
+    vi.stubGlobal('tf', {getBackend: vi.fn(() => { throw new Error('not ready'); })});
+
+    initializeCameraReadbackContext(canvas);
+
+    expect(canvas.getContext).toHaveBeenCalledWith('2d');
+  });
+});
 
 describe('TMPoseExtension', () => {
   it('exposes the expected extension ID and blocks', () => {
@@ -558,7 +595,7 @@ describe('TMPoseExtension', () => {
 
     expect(setup).toHaveBeenCalledWith({facingMode: {ideal: 'user'}});
     expect(canvas.getContext).toHaveBeenCalledOnce();
-    expect(canvas.getContext).toHaveBeenCalledWith('2d', {willReadFrequently: true});
+    expect(canvas.getContext).toHaveBeenCalledWith('2d');
     expect(extension.cameraDeviceIdReporter()).toBe('front-id');
     expect(extension.cameraDeviceNameReporter()).toBe('Built-in Front Camera');
   });
