@@ -729,6 +729,16 @@ The version in `package.json` is the release source of truth. The runtime report
 `-typescript` to that version, and the release consistency check keeps the generated bundles,
 exact-version README examples, Pages badges, and release tag aligned with it.
 
+### npm publishing
+
+npm publication uses GitHub Actions trusted publishing rather than a long-lived write token. The
+npm package settings must trust `kubohiroya/turbowarp-tmpose`, workflow file
+`publish-npm.yml`, for `npm publish`. After the annotated release tag and GitHub Release exist,
+dispatch **Publish npm package** with that tag. The workflow checks out the tag, verifies that it
+exactly matches `package.json`, runs the complete check, and publishes through a short-lived OIDC
+credential. Roll back the automation by removing the trusted publisher in npm package settings;
+do not add a write token to the repository.
+
 ## External libraries
 
 The version-pinned `dist/runtime.js` artifact bundles TensorFlow.js 1.3.1, Teachable Machine Pose
