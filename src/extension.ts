@@ -179,12 +179,26 @@ function isDocumentHidden(): boolean {
   return typeof document !== 'undefined' && document.visibilityState === 'hidden';
 }
 
+function currentTensorFlowBackend(): string | null {
+  const runtime = globalThis.tf as {getBackend?: () => unknown} | undefined;
+  if (typeof runtime?.getBackend !== 'function') return null;
+  try {
+    const backend = runtime.getBackend();
+    return typeof backend === 'string' ? backend : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Initialize the camera canvas before Teachable Machine or TensorFlow.js requests its context.
- * The same canvas is drawn once per frame and then read back by fromPixels(), so the first context
- * request must declare that readback workload. Later getContext('2d') calls return this context.
+ * TensorFlow's CPU fromPixels() path reads Canvas2D pixels, while the WebGL path uploads the canvas
+ * as a texture. The readback hint is therefore limited to CPU so it cannot slow WebGL video draws.
  */
-export function initializeCameraReadbackContext(canvas: unknown): CanvasRenderingContext2D {
+export function initializeCameraReadbackContext(
+  canvas: unknown,
+  tensorflowBackend = currentTensorFlowBackend()
+): CanvasRenderingContext2D {
   if (
     typeof canvas !== 'object' ||
     canvas === null ||
@@ -192,7 +206,9 @@ export function initializeCameraReadbackContext(canvas: unknown): CanvasRenderin
   ) {
     throw new Error('TMPose: Webcam canvas does not provide a 2D context.');
   }
-  const context = (canvas as HTMLCanvasElement).getContext('2d', {willReadFrequently: true});
+  const context = tensorflowBackend === 'cpu'
+    ? (canvas as HTMLCanvasElement).getContext('2d', {willReadFrequently: true})
+    : (canvas as HTMLCanvasElement).getContext('2d');
   if (!context) throw new Error('TMPose: Webcam canvas 2D context is unavailable.');
   return context;
 }

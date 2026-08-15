@@ -26,10 +26,10 @@ export declare const BROWSER_RUNTIME_URL: string;
 export declare function loadScript(src: string): Promise<void>;
 /**
  * Initialize the camera canvas before Teachable Machine or TensorFlow.js requests its context.
- * The same canvas is drawn once per frame and then read back by fromPixels(), so the first context
- * request must declare that readback workload. Later getContext('2d') calls return this context.
+ * TensorFlow's CPU fromPixels() path reads Canvas2D pixels, while the WebGL path uploads the canvas
+ * as a texture. The readback hint is therefore limited to CPU so it cannot slow WebGL video draws.
  */
-export declare function initializeCameraReadbackContext(canvas: unknown): CanvasRenderingContext2D;
+export declare function initializeCameraReadbackContext(canvas: unknown, tensorflowBackend?: string | null): CanvasRenderingContext2D;
 export declare class TMPoseExtension {
     [key: string]: any;
     constructor(featureFlags?: Partial<FeatureFlags>, dependencies?: TMPoseExtensionDependencies);

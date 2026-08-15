@@ -408,7 +408,7 @@ describe('TMPose composition API', () => {
     ]);
     expect(webcam.play).toHaveBeenCalledOnce();
     expect(webcam.canvas.getContext).toHaveBeenCalledOnce();
-    expect(webcam.canvas.getContext).toHaveBeenCalledWith('2d', {willReadFrequently: true});
+    expect(webcam.canvas.getContext).toHaveBeenCalledWith('2d');
   });
 
   it('caches named models and isolates active state between instances', async () => {
