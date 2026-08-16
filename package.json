@@ -59,7 +59,7 @@
     "check:dist": "npm run build && git diff --exit-code -- dist",
     "archive:check": "node scripts/check-github-archive.mjs",
     "pack:check": "npm pack --dry-run --ignore-scripts",
-    "release:check": "npm publish --dry-run --access public",
+    "release:check": "npm publish --dry-run --access public --tag latest",
     "check": "npm run typecheck && npm run test && npm run build && npm run types:composition:check && npm run types:posenet:check && npm run docs:check && npm run docs:pages:check && npm run release:consistency:check && npm run check:dist && npm run archive:check && npm run pack:check",
     "prepack": "npm run build && npm run release:consistency:check"
   },
