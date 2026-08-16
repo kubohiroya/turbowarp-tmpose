@@ -8,7 +8,7 @@
   'use strict';
 
   const extensionName = "TMPose";
-  const blocks = [{ "opcode": "versionReporter", "blockType": "REPORTER", "text": "TMPose version", "description": "Returns the extension version." }, { "opcode": "setModelURL", "blockType": "COMMAND", "text": "set model URL to [URL]", "description": "Sets the Teachable Machine Pose model URL.", "arguments": { "URL": { "type": "STRING", "defaultValue": "https://teachablemachine.withgoogle.com/models/XXXX/" } } }, { "opcode": "startCamera", "blockType": "COMMAND", "text": "start camera", "description": "Starts the camera and attaches the preview." }, { "opcode": "stopCamera", "blockType": "COMMAND", "text": "stop camera", "description": "Stops the camera and prediction loop." }, { "opcode": "isCameraRunning", "blockType": "BOOLEAN", "text": "camera is running?", "description": "Reports whether the camera is running." }, { "opcode": "refreshCameraList", "blockType": "COMMAND", "text": "refresh camera list", "description": "Refreshes the list of available video input devices." }, { "opcode": "setCameraSelection", "blockType": "COMMAND", "text": "set camera to [CAMERA]", "description": "Selects the default, front, back, or a detected camera and switches a running camera.", "arguments": { "CAMERA": { "type": "STRING", "menu": "cameraMenu", "defaultValue": "default" } } }, { "opcode": "cameraCountReporter", "blockType": "REPORTER", "text": "camera count", "description": "Returns the number of video input devices found by the latest refresh." }, { "opcode": "cameraDeviceIdReporter", "blockType": "REPORTER", "text": "camera device ID", "description": "Returns the active camera device ID when available." }, { "opcode": "cameraDeviceNameReporter", "blockType": "REPORTER", "text": "camera device name", "description": "Returns the active camera device name when available." }, { "opcode": "showPreview", "blockType": "COMMAND", "text": "show camera preview", "description": "Shows the camera preview." }, { "opcode": "hidePreview", "blockType": "COMMAND", "text": "hide camera preview", "description": "Hides the camera preview." }, { "opcode": "isPreviewVisible", "blockType": "BOOLEAN", "text": "camera preview is visible?", "description": "Reports whether the preview is configured as visible." }, { "opcode": "setPreviewOpacity", "blockType": "COMMAND", "text": "set camera preview opacity to [OPACITY]", "description": "Sets preview opacity from 0 to 1.", "arguments": { "OPACITY": { "type": "NUMBER", "defaultValue": 0.6 } } }, { "opcode": "setPreviewPosition", "blockType": "COMMAND", "text": "set camera preview position to [POSITION]", "description": "Sets the preview position on the stage.", "arguments": { "POSITION": { "type": "STRING", "menu": "positionMenu", "defaultValue": "bottom-right" } } }, { "opcode": "setPreviewMirroring", "blockType": "COMMAND", "text": "set camera preview to [MIRRORING]", "description": "Sets whether the preview is mirrored without changing the recognition input.", "arguments": { "MIRRORING": { "type": "STRING", "menu": "previewMirroringMenu", "defaultValue": "mirrored" } } }, { "opcode": "previewMirroringReporter", "blockType": "REPORTER", "text": "camera preview mirroring", "description": "Returns mirrored or unmirrored for the current preview setting." }, { "opcode": "setPoseOverlayVisibility", "blockType": "COMMAND", "text": "set pose overlay [VISIBILITY]", "description": "Shows or hides the SVG pose overlay without stopping recognition.", "featureFlag": "poseOverlay", "arguments": { "VISIBILITY": { "type": "STRING", "menu": "poseOverlayVisibilityMenu", "defaultValue": "on" } } }, { "opcode": "isPoseOverlayVisible", "blockType": "BOOLEAN", "text": "pose overlay is visible?", "description": "Reports whether the SVG pose overlay is configured as visible.", "featureFlag": "poseOverlay" }, { "opcode": "setPoseJointStyle", "blockType": "COMMAND", "text": "set [PART] joint color [COLOR] opacity [OPACITY] radius [RADIUS]", "description": "Sets the SVG circle style for one PoseNet joint.", "featureFlag": "poseOverlay", "arguments": { "PART": { "type": "STRING", "menu": "poseKeypointMenu", "defaultValue": "nose" }, "COLOR": { "type": "STRING", "defaultValue": "#00e5ff" }, "OPACITY": { "type": "NUMBER", "defaultValue": 1 }, "RADIUS": { "type": "NUMBER", "defaultValue": 4 } } }, { "opcode": "setPoseBoneStyle", "blockType": "COMMAND", "text": "set pose bone color [COLOR] opacity [OPACITY] width [WIDTH]", "description": "Sets the color, opacity, and line width for all SVG pose bones.", "featureFlag": "poseOverlay", "arguments": { "COLOR": { "type": "STRING", "defaultValue": "#00e5ff" }, "OPACITY": { "type": "NUMBER", "defaultValue": 0.9 }, "WIDTH": { "type": "NUMBER", "defaultValue": 3 } } }, { "opcode": "setPoseOverlayMinimumConfidence", "blockType": "COMMAND", "text": "set pose overlay minimum confidence to [CONFIDENCE]", "description": "Hides joints and bones whose keypoint confidence is below the given value.", "featureFlag": "poseOverlay", "arguments": { "CONFIDENCE": { "type": "NUMBER", "defaultValue": 0.5 } } }, { "opcode": "setPoseConfidenceScaling", "blockType": "COMMAND", "text": "set pose [PROPERTY] confidence scaling [STATE]", "description": "Scales the selected SVG style property from zero to its configured value using keypoint confidence.", "featureFlag": "poseOverlay", "arguments": { "PROPERTY": { "type": "STRING", "menu": "poseConfidencePropertyMenu", "defaultValue": "joint-opacity" }, "STATE": { "type": "STRING", "menu": "poseOverlayVisibilityMenu", "defaultValue": "off" } } }, { "opcode": "loadModel", "blockType": "COMMAND", "text": "load model", "description": "Loads the configured pose model." }, { "opcode": "isModelLoaded", "blockType": "BOOLEAN", "text": "model is loaded?", "description": "Reports whether the model is loaded." }, { "opcode": "startPredict", "blockType": "COMMAND", "text": "start recognition", "description": "Starts pose recognition." }, { "opcode": "stopPredict", "blockType": "COMMAND", "text": "stop recognition", "description": "Stops pose recognition." }, { "opcode": "isPredicting", "blockType": "BOOLEAN", "text": "recognition is running?", "description": "Reports whether recognition is running." }, { "opcode": "currentPoseReporter", "blockType": "REPORTER", "text": "current pose", "description": "Returns the highest-scoring pose label." }, { "opcode": "scoreReporter", "blockType": "REPORTER", "text": "confidence", "description": "Returns the confidence of the current pose." }, { "opcode": "poseScoreReporter", "blockType": "REPORTER", "text": "confidence of [NAME]", "description": "Returns the confidence for a named pose.", "arguments": { "NAME": { "type": "STRING", "defaultValue": "jump" } } }, { "opcode": "setAccumulatedPoseParameters", "blockType": "COMMAND", "text": "set accumulated pose accumulation [ACCUMULATION] decay [DECAY]", "description": "Sets the accumulation rate per second and the decay retained per second; decay changes apply to the next recognition session.", "featureFlag": "temporalPoseScoring", "arguments": { "ACCUMULATION": { "type": "NUMBER", "defaultValue": 1 }, "DECAY": { "type": "NUMBER", "defaultValue": 0.9 } } }, { "opcode": "setAccumulatedPoseThreshold", "blockType": "COMMAND", "text": "set accumulated pose threshold [THRESHOLD]", "description": "Sets the minimum accumulated score required to report a pose; values below the threshold report an empty string.", "featureFlag": "temporalPoseScoring", "arguments": { "THRESHOLD": { "type": "NUMBER", "defaultValue": 0 } } }, { "opcode": "resetAccumulatedPose", "blockType": "COMMAND", "text": "reset accumulated pose scores", "description": "Clears all accumulated pose scores.", "featureFlag": "temporalPoseScoring" }, { "opcode": "accumulatedPoseReporter", "blockType": "REPORTER", "text": "accumulated pose", "description": "Returns the pose label whose accumulated score is highest and meets the threshold, or an empty string otherwise.", "featureFlag": "temporalPoseScoring" }, { "opcode": "accumulatedScoreReporter", "blockType": "REPORTER", "text": "accumulated score", "description": "Returns the highest accumulated pose score without rounding.", "featureFlag": "temporalPoseScoring" }, { "opcode": "accumulatedPoseScoreReporter", "blockType": "REPORTER", "text": "accumulated score of [NAME]", "description": "Returns the accumulated score for a named pose without rounding.", "featureFlag": "temporalPoseScoring", "arguments": { "NAME": { "type": "STRING", "defaultValue": "jump" } } }, { "opcode": "isPose", "blockType": "BOOLEAN", "text": "pose is [NAME]?", "description": "Reports whether the named pose has at least 0.75 confidence.", "arguments": { "NAME": { "type": "STRING", "defaultValue": "jump" } } }, { "opcode": "isPoseWithThreshold", "blockType": "BOOLEAN", "text": "pose is [NAME] with confidence at least [THRESHOLD]?", "description": "Reports whether the named pose meets the given threshold.", "arguments": { "NAME": { "type": "STRING", "defaultValue": "jump" }, "THRESHOLD": { "type": "NUMBER", "defaultValue": 0.75 } } }, { "opcode": "cameraMsReporter", "blockType": "REPORTER", "text": "camera startup time (ms)", "description": "Returns camera startup time in milliseconds." }, { "opcode": "modelLoadMsReporter", "blockType": "REPORTER", "text": "model load time (ms)", "description": "Returns model load time in milliseconds." }, { "opcode": "firstPredictMsReporter", "blockType": "REPORTER", "text": "first recognition time (ms)", "description": "Returns first prediction time in milliseconds." }, { "opcode": "lastErrorReporter", "blockType": "REPORTER", "text": "last error", "description": "Returns the latest recorded error message." }];
+  const blocks = [{ "opcode": "versionReporter", "blockType": "REPORTER", "text": "TMPose version", "description": "Returns the extension version." }, { "opcode": "setModelURL", "blockType": "COMMAND", "text": "set model URL to [URL]", "description": "Sets the Teachable Machine Pose model URL.", "arguments": { "URL": { "type": "STRING", "defaultValue": "https://teachablemachine.withgoogle.com/models/XXXX/" } } }, { "opcode": "startCamera", "blockType": "COMMAND", "text": "start camera", "description": "Starts the camera and attaches the preview." }, { "opcode": "stopCamera", "blockType": "COMMAND", "text": "stop camera", "description": "Stops the camera and recognition loop." }, { "opcode": "isCameraRunning", "blockType": "BOOLEAN", "text": "camera is running?", "description": "Reports whether the camera is running." }, { "opcode": "refreshCameraList", "blockType": "COMMAND", "text": "refresh camera list", "description": "Refreshes the list of available video input devices." }, { "opcode": "setCameraSelection", "blockType": "COMMAND", "text": "set camera to [CAMERA]", "description": "Selects the default, front, back, or a detected camera and switches a running camera.", "arguments": { "CAMERA": { "type": "STRING", "menu": "cameraMenu", "defaultValue": "default" } } }, { "opcode": "cameraCountReporter", "blockType": "REPORTER", "text": "camera count", "description": "Returns the number of video input devices found by the latest refresh." }, { "opcode": "cameraDeviceIdReporter", "blockType": "REPORTER", "text": "camera device ID", "description": "Returns the active camera device ID when available." }, { "opcode": "cameraDeviceNameReporter", "blockType": "REPORTER", "text": "camera device name", "description": "Returns the active camera device name when available." }, { "opcode": "showPreview", "blockType": "COMMAND", "text": "show camera preview", "description": "Shows the camera preview." }, { "opcode": "hidePreview", "blockType": "COMMAND", "text": "hide camera preview", "description": "Hides the camera preview." }, { "opcode": "isPreviewVisible", "blockType": "BOOLEAN", "text": "camera preview is visible?", "description": "Reports whether the preview is configured as visible." }, { "opcode": "setPreviewOpacity", "blockType": "COMMAND", "text": "set camera preview opacity to [OPACITY]", "description": "Sets preview opacity from 0 to 1.", "arguments": { "OPACITY": { "type": "NUMBER", "defaultValue": 0.6 } } }, { "opcode": "setPreviewPosition", "blockType": "COMMAND", "text": "set camera preview position to [POSITION]", "description": "Sets the preview position on the stage.", "arguments": { "POSITION": { "type": "STRING", "menu": "positionMenu", "defaultValue": "bottom-right" } } }, { "opcode": "setPreviewMirroring", "blockType": "COMMAND", "text": "set camera preview to [MIRRORING]", "description": "Sets whether the preview is mirrored without changing the recognition input.", "arguments": { "MIRRORING": { "type": "STRING", "menu": "previewMirroringMenu", "defaultValue": "mirrored" } } }, { "opcode": "previewMirroringReporter", "blockType": "REPORTER", "text": "camera preview mirroring", "description": "Returns mirrored or unmirrored for the current preview setting." }, { "opcode": "setPoseOverlayVisibility", "blockType": "COMMAND", "text": "set pose overlay [VISIBILITY]", "description": "Shows or hides the SVG pose overlay without stopping recognition.", "featureFlag": "poseOverlay", "arguments": { "VISIBILITY": { "type": "STRING", "menu": "poseOverlayVisibilityMenu", "defaultValue": "on" } } }, { "opcode": "isPoseOverlayVisible", "blockType": "BOOLEAN", "text": "pose overlay is visible?", "description": "Reports whether the SVG pose overlay is configured as visible.", "featureFlag": "poseOverlay" }, { "opcode": "setPoseJointStyle", "blockType": "COMMAND", "text": "set [PART] joint color [COLOR] opacity [OPACITY] radius [RADIUS]", "description": "Sets the SVG circle style for one PoseNet joint.", "featureFlag": "poseOverlay", "arguments": { "PART": { "type": "STRING", "menu": "poseKeypointMenu", "defaultValue": "nose" }, "COLOR": { "type": "STRING", "defaultValue": "#00e5ff" }, "OPACITY": { "type": "NUMBER", "defaultValue": 1 }, "RADIUS": { "type": "NUMBER", "defaultValue": 4 } } }, { "opcode": "setPoseBoneStyle", "blockType": "COMMAND", "text": "set pose bone color [COLOR] opacity [OPACITY] width [WIDTH]", "description": "Sets the color, opacity, and line width for all SVG pose bones.", "featureFlag": "poseOverlay", "arguments": { "COLOR": { "type": "STRING", "defaultValue": "#00e5ff" }, "OPACITY": { "type": "NUMBER", "defaultValue": 0.9 }, "WIDTH": { "type": "NUMBER", "defaultValue": 3 } } }, { "opcode": "setPoseOverlayMinimumConfidence", "blockType": "COMMAND", "text": "set pose overlay minimum confidence to [CONFIDENCE]", "description": "Hides joints and bones whose keypoint confidence is below the given value.", "featureFlag": "poseOverlay", "arguments": { "CONFIDENCE": { "type": "NUMBER", "defaultValue": 0.5 } } }, { "opcode": "setPoseConfidenceScaling", "blockType": "COMMAND", "text": "set pose [PROPERTY] confidence scaling [STATE]", "description": "Scales the selected SVG style property from zero to its configured value using keypoint confidence.", "featureFlag": "poseOverlay", "arguments": { "PROPERTY": { "type": "STRING", "menu": "poseConfidencePropertyMenu", "defaultValue": "joint-opacity" }, "STATE": { "type": "STRING", "menu": "poseOverlayVisibilityMenu", "defaultValue": "off" } } }, { "opcode": "loadModel", "blockType": "COMMAND", "text": "load model", "description": "Loads the configured pose model." }, { "opcode": "isModelLoaded", "blockType": "BOOLEAN", "text": "model is loaded?", "description": "Reports whether the model is loaded." }, { "opcode": "startRecognition", "blockType": "COMMAND", "text": "start recognition", "description": "Starts pose recognition." }, { "opcode": "stopRecognition", "blockType": "COMMAND", "text": "stop recognition", "description": "Stops pose recognition." }, { "opcode": "isRecognizing", "blockType": "BOOLEAN", "text": "recognition is running?", "description": "Reports whether recognition is running." }, { "opcode": "currentPoseReporter", "blockType": "REPORTER", "text": "current pose", "description": "Returns the highest-scoring pose label." }, { "opcode": "scoreReporter", "blockType": "REPORTER", "text": "confidence", "description": "Returns the confidence of the current pose." }, { "opcode": "poseScoreReporter", "blockType": "REPORTER", "text": "confidence of [NAME]", "description": "Returns the confidence for a named pose.", "arguments": { "NAME": { "type": "STRING", "defaultValue": "jump" } } }, { "opcode": "setAccumulatedPoseParameters", "blockType": "COMMAND", "text": "set accumulated pose accumulation [ACCUMULATION] decay [DECAY]", "description": "Sets the accumulation rate per second and the decay retained per second; decay changes apply to the next recognition session.", "featureFlag": "temporalPoseScoring", "arguments": { "ACCUMULATION": { "type": "NUMBER", "defaultValue": 1 }, "DECAY": { "type": "NUMBER", "defaultValue": 0.9 } } }, { "opcode": "setAccumulatedPoseThreshold", "blockType": "COMMAND", "text": "set accumulated pose threshold [THRESHOLD]", "description": "Sets the minimum accumulated score required to report a pose; values below the threshold report an empty string.", "featureFlag": "temporalPoseScoring", "arguments": { "THRESHOLD": { "type": "NUMBER", "defaultValue": 0 } } }, { "opcode": "resetAccumulatedPose", "blockType": "COMMAND", "text": "reset accumulated pose scores", "description": "Clears all accumulated pose scores.", "featureFlag": "temporalPoseScoring" }, { "opcode": "accumulatedPoseReporter", "blockType": "REPORTER", "text": "accumulated pose", "description": "Returns the pose label whose accumulated score is highest and meets the threshold, or an empty string otherwise.", "featureFlag": "temporalPoseScoring" }, { "opcode": "accumulatedScoreReporter", "blockType": "REPORTER", "text": "accumulated score", "description": "Returns the highest accumulated pose score without rounding.", "featureFlag": "temporalPoseScoring" }, { "opcode": "accumulatedPoseScoreReporter", "blockType": "REPORTER", "text": "accumulated score of [NAME]", "description": "Returns the accumulated score for a named pose without rounding.", "featureFlag": "temporalPoseScoring", "arguments": { "NAME": { "type": "STRING", "defaultValue": "jump" } } }, { "opcode": "isPose", "blockType": "BOOLEAN", "text": "pose is [NAME]?", "description": "Reports whether the named pose has at least 0.75 confidence.", "arguments": { "NAME": { "type": "STRING", "defaultValue": "jump" } } }, { "opcode": "isPoseWithThreshold", "blockType": "BOOLEAN", "text": "pose is [NAME] with confidence at least [THRESHOLD]?", "description": "Reports whether the named pose meets the given threshold.", "arguments": { "NAME": { "type": "STRING", "defaultValue": "jump" }, "THRESHOLD": { "type": "NUMBER", "defaultValue": 0.75 } } }, { "opcode": "cameraMsReporter", "blockType": "REPORTER", "text": "camera startup time (ms)", "description": "Returns camera startup time in milliseconds." }, { "opcode": "modelLoadMsReporter", "blockType": "REPORTER", "text": "model load time (ms)", "description": "Returns model load time in milliseconds." }, { "opcode": "firstRecognitionMsReporter", "blockType": "REPORTER", "text": "first recognition time (ms)", "description": "Returns first recognition time in milliseconds." }, { "opcode": "lastErrorReporter", "blockType": "REPORTER", "text": "last error", "description": "Returns the latest recorded error message." }];
   const definitions = {
     extensionName,
     blocks
@@ -75,7 +75,7 @@
     if (!Number.isFinite(confidence)) return 0;
     return Math.max(0, Math.min(1, confidence));
   }
-  const version = "1.11.0";
+  const version = "2.0.0";
   const packageMetadata = {
     version
   };
@@ -268,7 +268,7 @@
       this.activeCameraDeviceId = "";
       this.activeCameraDeviceName = "";
       this.cameraSelectionQueue = Promise.resolve();
-      this.predicting = false;
+      this.recognizing = false;
       this.loopStarted = false;
       this.loopGeneration = 0;
       this.activeModelOperations = /* @__PURE__ */ new Map();
@@ -302,7 +302,7 @@
       this.latestPoseKeypoints = [];
       this.cameraMs = 0;
       this.modelLoadMs = 0;
-      this.firstPredictMs = 0;
+      this.firstRecognitionMs = 0;
       this.lastError = "";
       this.accumulatedPosePausedForBackground = isDocumentHidden();
       this.visibilityChangeListener = () => this.handleDocumentVisibilityChange();
@@ -377,7 +377,7 @@
       if (this.modelURL && !this.modelURL.endsWith("/")) this.modelURL += "/";
       this.model = null;
       this.modelLoadMs = 0;
-      this.firstPredictMs = 0;
+      this.firstRecognitionMs = 0;
     }
     async ensureLibrariesLoaded() {
       if (this.tmPoseRuntime) return;
@@ -445,7 +445,7 @@
     }
     stopCamera() {
       try {
-        this.stopPredict();
+        this.stopRecognition();
         this.cleanupCameraResources();
         this.currentPoseName = "";
         this.score = 0;
@@ -679,48 +679,48 @@
       if (!model || typeof model !== "object") {
         throw new TypeError("TMPose: Prepared model must be an object.");
       }
-      if (this.predicting && this.model !== model) {
+      if (this.recognizing && this.model !== model) {
         throw new Error("TMPose: Stop recognition before changing the active model.");
       }
       this.model = model;
       this.modelURL = "";
       this.modelLoadMs = 0;
-      this.firstPredictMs = 0;
+      this.firstRecognitionMs = 0;
     }
     clearPreparedModel(model) {
       if (model !== void 0 && this.model !== model) return;
-      this.stopPredict();
+      this.stopRecognition();
       this.model = null;
       this.modelURL = "";
       this.modelLoadMs = 0;
-      this.firstPredictMs = 0;
+      this.firstRecognitionMs = 0;
     }
-    async startPredict() {
+    async startRecognition() {
       try {
         this.lastError = "";
-        const startingNewSession = !this.predicting;
+        const startingNewSession = !this.recognizing;
         if (!this.cameraRunning) await this.startCamera();
         await this.loadModel();
         if (startingNewSession && this.featureFlags.temporalPoseScoring) {
           this.startAccumulatedPoseSession();
         }
-        this.predicting = true;
+        this.recognizing = true;
         this.startLoopIfNeeded();
       } catch (error) {
         this.setLastError(error);
         throw error;
       }
     }
-    stopPredict() {
-      this.predicting = false;
+    stopRecognition() {
+      this.recognizing = false;
       this.currentPoseName = "";
       this.score = 0;
       this.predictions = {};
       this.clearPoseOverlay();
       this.resetAccumulatedPose("stop");
     }
-    isPredicting() {
-      return this.predicting;
+    isRecognizing() {
+      return this.recognizing;
     }
     findStageElement() {
       try {
@@ -1048,9 +1048,9 @@
       }
       try {
         this.webcam.update();
-        if (this.predicting && this.model) {
+        if (this.recognizing && this.model) {
           const model = this.model;
-          const first = this.firstPredictMs === 0;
+          const first = this.firstRecognitionMs === 0;
           const startedAt = first ? performance.now() : 0;
           const recognition = await this.trackPreparedModelOperation(
             model,
@@ -1060,9 +1060,9 @@
               return { keypoints: estimate.pose?.keypoints, prediction };
             })()
           );
-          if (generation !== this.loopGeneration || !this.cameraRunning || !this.predicting || this.model !== model) {
+          if (generation !== this.loopGeneration || !this.cameraRunning || !this.recognizing || this.model !== model) {
           } else {
-            if (first) this.firstPredictMs = Math.round(performance.now() - startedAt);
+            if (first) this.firstRecognitionMs = Math.round(performance.now() - startedAt);
             this.renderPoseOverlay(recognition.keypoints);
             let best = { className: "", probability: 0 };
             this.predictions = {};
@@ -1117,7 +1117,7 @@
     emitAccumulatedPoseChanged(previousPoseName, reason) {
       if (!this.supportsAccumulatedPoseEvents() || previousPoseName === this.accumulatedPoseName) return;
       const payload = {
-        version: 1,
+        version: 2,
         poseName: this.accumulatedPoseName,
         previousPoseName,
         score: this.accumulatedScore,
@@ -1145,7 +1145,7 @@
       this.accumulatedPoseName = "";
       this.accumulatedScore = 0;
       this.accumulatedPredictions = {};
-      this.lastAccumulationTime = this.predicting ? performance.now() : null;
+      this.lastAccumulationTime = this.recognizing ? performance.now() : null;
       this.emitAccumulatedPoseChanged(previousPoseName, reason);
     }
     handleDocumentVisibilityChange() {
@@ -1156,7 +1156,7 @@
       }
       if (this.accumulatedPosePausedForBackground) {
         this.accumulatedPosePausedForBackground = false;
-        this.lastAccumulationTime = this.predicting ? performance.now() : null;
+        this.lastAccumulationTime = this.recognizing ? performance.now() : null;
       }
     }
     updateAccumulatedPose(prediction, now = performance.now()) {
@@ -1194,7 +1194,7 @@
       if (bestPoseName && this.accumulatedScore >= this.accumulatedPoseThreshold) {
         this.accumulatedPoseName = bestPoseName;
       }
-      this.emitAccumulatedPoseChanged(previousPoseName, "prediction");
+      this.emitAccumulatedPoseChanged(previousPoseName, "recognition");
     }
     accumulatedPoseReporter() {
       return this.accumulatedPoseName;
@@ -1222,8 +1222,8 @@
     modelLoadMsReporter() {
       return this.modelLoadMs;
     }
-    firstPredictMsReporter() {
-      return this.firstPredictMs;
+    firstRecognitionMsReporter() {
+      return this.firstRecognitionMs;
     }
     lastErrorReporter() {
       return this.lastError;

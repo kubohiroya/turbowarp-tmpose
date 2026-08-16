@@ -1,6 +1,6 @@
 import {
   createTMPoseComposition,
-  type AccumulatedPoseChangedEventV1,
+  type AccumulatedPoseChangedEventV2,
   type CameraDevice,
   type CameraPreference,
   type CameraSelection,
@@ -76,7 +76,7 @@ composition.configureAccumulatedPose({
   scoreThreshold: 0
 });
 const unsubscribe: () => void = composition.subscribeAccumulatedPose(
-  (event: Readonly<AccumulatedPoseChangedEventV1>) => {
+  (event: Readonly<AccumulatedPoseChangedEventV2>) => {
     void event.poseName;
   }
 );

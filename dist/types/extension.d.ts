@@ -13,14 +13,14 @@ export interface TMPoseRuntime {
 export interface TMPoseExtensionDependencies {
     runtime?: TMPoseRuntime;
     allowRemoteLibraries?: boolean;
-    onAccumulatedPoseChanged?: (event: AccumulatedPoseChangedEventV1) => void;
+    onAccumulatedPoseChanged?: (event: AccumulatedPoseChangedEventV2) => void;
 }
-export interface AccumulatedPoseChangedEventV1 {
-    version: 1;
+export interface AccumulatedPoseChangedEventV2 {
+    version: 2;
     poseName: string;
     previousPoseName: string;
     score: number;
-    reason: 'prediction' | 'reset' | 'stop';
+    reason: 'recognition' | 'reset' | 'stop';
     timestamp: number;
 }
 export declare const BROWSER_RUNTIME_URL: string;
@@ -137,9 +137,9 @@ export declare class TMPoseExtension {
     isModelLoaded(): boolean;
     usePreparedModel(model: any): void;
     clearPreparedModel(model: any): void;
-    startPredict(): Promise<void>;
-    stopPredict(): void;
-    isPredicting(): any;
+    startRecognition(): Promise<void>;
+    stopRecognition(): void;
+    isRecognizing(): any;
     findStageElement(): Element;
     findLikelyStageCanvas(): HTMLCanvasElement;
     validatePreviewAttachment(stage: any, canvas: any): void;
@@ -162,9 +162,9 @@ export declare class TMPoseExtension {
     setAccumulatedPoseThreshold(args: any): void;
     startAccumulatedPoseSession(now?: number): void;
     supportsAccumulatedPoseEvents(): any;
-    emitAccumulatedPoseChanged(previousPoseName: string, reason: AccumulatedPoseChangedEventV1['reason']): void;
+    emitAccumulatedPoseChanged(previousPoseName: string, reason: AccumulatedPoseChangedEventV2['reason']): void;
     dispose(): void;
-    resetAccumulatedPose(reason?: AccumulatedPoseChangedEventV1['reason']): void;
+    resetAccumulatedPose(reason?: AccumulatedPoseChangedEventV2['reason']): void;
     handleDocumentVisibilityChange(): void;
     updateAccumulatedPose(prediction: any, now?: number): void;
     updateAccumulatedPoseSelection(): void;
@@ -175,6 +175,6 @@ export declare class TMPoseExtension {
     isPoseWithThreshold(args: any): boolean;
     cameraMsReporter(): any;
     modelLoadMsReporter(): any;
-    firstPredictMsReporter(): any;
+    firstRecognitionMsReporter(): any;
     lastErrorReporter(): any;
 }

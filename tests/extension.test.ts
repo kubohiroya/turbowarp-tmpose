@@ -139,7 +139,7 @@ describe('TMPoseExtension', () => {
       id: string;
       docsURI: string;
       blockIconURI: string;
-      blocks: unknown[];
+      blocks: Array<{opcode: string}>;
       menus: {cameraMenu: {items: string}};
     };
     expect(info.id).toBe('tmpose');
@@ -153,6 +153,24 @@ describe('TMPoseExtension', () => {
     expect(new TMPoseExtension().versionReporter()).toBe(VERSION);
     expect(VERSION).toBe(`${packageMetadata.version}-typescript`);
     expect(info.blocks).toHaveLength(37);
+    const opcodes = info.blocks.map((block) => block.opcode);
+    expect(opcodes).toEqual(expect.arrayContaining([
+      'startRecognition',
+      'stopRecognition',
+      'isRecognizing',
+      'firstRecognitionMsReporter'
+    ]));
+    expect(opcodes).not.toEqual(expect.arrayContaining([
+      'startPredict',
+      'stopPredict',
+      'isPredicting',
+      'firstPredictMsReporter'
+    ]));
+    const extension = new TMPoseExtension() as Record<string, unknown>;
+    expect(extension.startPredict).toBeUndefined();
+    expect(extension.stopPredict).toBeUndefined();
+    expect(extension.isPredicting).toBeUndefined();
+    expect(extension.firstPredictMsReporter).toBeUndefined();
     expect(info.menus.cameraMenu.items).toBe('getCameraMenuItems');
   });
 
@@ -239,19 +257,19 @@ describe('TMPoseExtension', () => {
 
     expect(emit).toHaveBeenCalledTimes(2);
     expect(emit).toHaveBeenNthCalledWith(1, 'TMPOSE_ACCUMULATED_POSE_CHANGED', {
-      version: 1,
+      version: 2,
       poseName: 'jump',
       previousPoseName: '',
       score: 1,
-      reason: 'prediction',
+      reason: 'recognition',
       timestamp: 100
     });
     expect(emit).toHaveBeenNthCalledWith(2, 'TMPOSE_ACCUMULATED_POSE_CHANGED', {
-      version: 1,
+      version: 2,
       poseName: 'stand',
       previousPoseName: 'jump',
       score: 1,
-      reason: 'prediction',
+      reason: 'recognition',
       timestamp: 100
     });
   });
@@ -268,9 +286,9 @@ describe('TMPoseExtension', () => {
     extension.updateAccumulatedPose([{className: 'jump', probability: 1}], 1000);
 
     extension.resetAccumulatedPose();
-    extension.stopPredict();
+    extension.stopRecognition();
     expect(emit).toHaveBeenLastCalledWith('TMPOSE_ACCUMULATED_POSE_CHANGED', {
-      version: 1,
+      version: 2,
       poseName: '',
       previousPoseName: 'jump',
       score: 0,
@@ -283,7 +301,7 @@ describe('TMPoseExtension', () => {
     extension.updateAccumulatedPose([{className: 'stand', probability: 1}], 2000);
     extension.stopCamera();
     expect(emit).toHaveBeenLastCalledWith('TMPOSE_ACCUMULATED_POSE_CHANGED', {
-      version: 1,
+      version: 2,
       poseName: '',
       previousPoseName: 'stand',
       score: 0,
@@ -387,7 +405,7 @@ describe('TMPoseExtension', () => {
     const extension = new TMPoseExtension({temporalPoseScoring: true});
     extension.setAccumulatedPoseParameters({ACCUMULATION: 1, DECAY: 0.5});
     extension.startAccumulatedPoseSession(0);
-    extension.predicting = true;
+    extension.recognizing = true;
 
     extension.updateAccumulatedPose([{className: 'jump', probability: 1}], 1000);
     expect(extension.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(1);
@@ -422,14 +440,14 @@ describe('TMPoseExtension', () => {
     extension.modelURL = 'https://example.com/model/';
     extension.setAccumulatedPoseParameters({ACCUMULATION: 1, DECAY: 0.5});
 
-    await extension.startPredict();
+    await extension.startRecognition();
     expect(extension.activeDecayCoefficient).toBe(0.5);
     extension.setAccumulatedPoseParameters({ACCUMULATION: 1, DECAY: 0.1});
     expect(extension.decayCoefficient).toBe(0.1);
     expect(extension.activeDecayCoefficient).toBe(0.5);
 
-    extension.stopPredict();
-    await extension.startPredict();
+    extension.stopRecognition();
+    await extension.startRecognition();
     expect(extension.activeDecayCoefficient).toBe(0.1);
   });
 
@@ -443,7 +461,7 @@ describe('TMPoseExtension', () => {
     extension.setAccumulatedPoseParameters({ACCUMULATION: 1, DECAY: 0.9});
     extension.startAccumulatedPoseSession(1000);
     extension.updateAccumulatedPose([{className: 'jump', probability: 1}], 2000);
-    extension.stopPredict();
+    extension.stopRecognition();
     expect(extension.accumulatedPoseReporter()).toBe('');
     expect(extension.accumulatedScoreReporter()).toBe(0);
     expect(extension.accumulatedPoseScoreReporter({NAME: 'jump'})).toBe(0);
@@ -622,7 +640,7 @@ describe('TMPoseExtension', () => {
     extension.showPreview();
     expect(svg.style.display).toBe('block');
 
-    extension.stopPredict();
+    extension.stopRecognition();
     expect(shoulder.style.display).toBe('none');
     expect(hipShoulder.style.display).toBe('none');
     extension.cleanupCameraResources();
@@ -636,7 +654,7 @@ describe('TMPoseExtension', () => {
     const extension = new TMPoseExtension({poseOverlay: true});
     extension.webcam = {canvas, update: vi.fn()};
     extension.cameraRunning = true;
-    extension.predicting = true;
+    extension.recognizing = true;
     extension.loopGeneration = 1;
     extension.model = {
       estimatePose: vi.fn(async () => ({
@@ -797,7 +815,7 @@ describe('TMPoseExtension', () => {
       predict: vi.fn(async () => [])
     };
     extension.model = model;
-    extension.predicting = true;
+    extension.recognizing = true;
     extension.hidePreview();
     extension.setPreviewOpacity({OPACITY: 0.4});
     extension.setPreviewPosition({POSITION: 'center'});
@@ -807,7 +825,7 @@ describe('TMPoseExtension', () => {
 
     expect(firstStop).toHaveBeenCalledOnce();
     expect(second.setup).toHaveBeenCalledWith({deviceId: {exact: 'external-id'}});
-    expect(extension.predicting).toBe(true);
+    expect(extension.recognizing).toBe(true);
     expect(extension.model).toBe(model);
     expect(extension.cameraRunning).toBe(true);
     expect(extension.cameraDeviceIdReporter()).toBe('external-id');

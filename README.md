@@ -50,7 +50,7 @@ with **Run extension without sandbox** enabled.
 The browser-ready, version-pinned build is also available from jsDelivr:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.11.0/dist/tmpose.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@2.0.0/dist/tmpose.js
 ```
 
 The standalone extension loads one reviewed browser runtime that contains one TensorFlow.js 1.3.1
@@ -58,13 +58,13 @@ module graph together with Teachable Machine Pose 0.8.3. Composite runtimes can 
 same artifact without rewriting a minified third-party bundle:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.11.0/dist/runtime.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@2.0.0/dist/runtime.js
 ```
 
 To add the published package to another project:
 
 ```sh
-pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.11.0
+pnpm add --save-exact @kubohiroya/turbowarp-tmpose@2.0.0
 ```
 
 ### Offline PoseNet bundle API
@@ -268,7 +268,7 @@ separate from an Actor action that waits for multiple pose steps in sequence: a 
 should read `confidenceOf(name)` and own its per-step progress instead of using or resetting this
 candidate-selection state.
 
-Accumulated scores use elapsed wall-clock seconds, not prediction counts:
+Accumulated scores use elapsed wall-clock seconds, not recognition counts:
 
 ```text
 nextScore = previousScore * decayPerSecond^elapsedSeconds
@@ -383,7 +383,7 @@ The `accumulatedPoseEvents` feature flag is also **off by default** and requires
 `runtime.ext_tmpose.supportsAccumulatedPoseEvents()` and subscribe to
 `TMPOSE_ACCUMULATED_POSE_CHANGED` on the TurboWarp runtime.
 
-Each version 1 event includes `poseName`, `previousPoseName`, `score`, `reason` (`prediction`,
+Each version 2 event includes `poseName`, `previousPoseName`, `score`, `reason` (`recognition`,
 `reset`, or `stop`), and a monotonic `timestamp`. Score-only updates do not emit an event.
 
 ## Troubleshooting
@@ -428,7 +428,7 @@ Starts the camera and attaches the preview.
 
 ### `stop camera`
 
-Stops the camera and prediction loop.
+Stops the camera and recognition loop.
 
 | Property | Value |
 |---|---|
@@ -652,7 +652,7 @@ Starts pose recognition.
 | Property | Value |
 |---|---|
 | Type | COMMAND |
-| Opcode | `startPredict` |
+| Opcode | `startRecognition` |
 
 ### `stop recognition`
 
@@ -661,7 +661,7 @@ Stops pose recognition.
 | Property | Value |
 |---|---|
 | Type | COMMAND |
-| Opcode | `stopPredict` |
+| Opcode | `stopRecognition` |
 
 ### `recognition is running?`
 
@@ -670,7 +670,7 @@ Reports whether recognition is running.
 | Property | Value |
 |---|---|
 | Type | BOOLEAN |
-| Opcode | `isPredicting` |
+| Opcode | `isRecognizing` |
 
 ### `current pose`
 
@@ -805,12 +805,12 @@ Returns model load time in milliseconds.
 
 ### `first recognition time (ms)`
 
-Returns first prediction time in milliseconds.
+Returns first recognition time in milliseconds.
 
 | Property | Value |
 |---|---|
 | Type | REPORTER |
-| Opcode | `firstPredictMsReporter` |
+| Opcode | `firstRecognitionMsReporter` |
 
 ### `last error`
 
