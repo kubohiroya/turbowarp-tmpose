@@ -1,6 +1,6 @@
-import { type AccumulatedPoseChangedEventV1 } from './extension.js';
+import { type AccumulatedPoseChangedEventV2 } from './extension.js';
 import { type PoseBoneStyle, type PoseJointStyle, type PoseKeypointName, type PoseOverlayConfidenceScaling } from './pose-overlay.js';
-export type { AccumulatedPoseChangedEventV1 } from './extension.js';
+export type { AccumulatedPoseChangedEventV2 } from './extension.js';
 export type { PoseBoneStyle, PoseJointStyle, PoseKeypointName, PoseOverlayConfidenceScaling } from './pose-overlay.js';
 export interface TMPoseCompositionRuntime {
     Webcam: new (width: number, height: number, flipHorizontal: boolean) => unknown;
@@ -40,7 +40,7 @@ export interface CameraDevice {
     readonly deviceId: string;
     readonly label: string;
 }
-export type AccumulatedPoseListener = (event: Readonly<AccumulatedPoseChangedEventV1>) => void;
+export type AccumulatedPoseListener = (event: Readonly<AccumulatedPoseChangedEventV2>) => void;
 export interface TMPoseComposition {
     registerPoseModel(input: PoseModelRegistrationInput, options?: PoseModelRegistrationOptions): Promise<PoseModelRegistration>;
     activatePoseModel(name: unknown): void;

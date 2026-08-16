@@ -15,10 +15,10 @@
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="./" aria-label="TMPose 1.11.0 user guide home">
+      <a class="brand" href="./" aria-label="TMPose 2.0.0 user guide home">
         <span class="brand-mark">TM</span>
         <span class="brand-label">TMPose</span>
-        <span class="version-badge" aria-hidden="true">v1.11.0</span>
+        <span class="version-badge" aria-hidden="true">v2.0.0</span>
       </a>
       <nav class="primary-nav" aria-label="Guide sections">
         <a href="#quick-start">Quick start</a>
@@ -94,7 +94,9 @@
         <p>
           Click the documentation button immediately below the <strong>TMPose</strong> member
           heading. The bundled blocks retain the model URL, recognition, preview, label, score,
-          threshold, and lifecycle behavior described here. Version 1.11.0 adds the configurable
+          threshold, and lifecycle behavior described here. Version 2.0.0 names the public lifecycle
+          opcodes <code>startRecognition</code>, <code>stopRecognition</code>, and
+          <code>isRecognizing</code>, with no legacy aliases. Version 1.11.0 added the configurable
           SVG pose overlay blocks shown in the camera reference. Latest-needed model initialization
           and cancellation controls remain host APIs documented under Composition API.
         </p>
@@ -283,7 +285,7 @@
           <p class="eyebrow">Block guide</p>
           <h2 id="block-guide-title">Pick the block for the job</h2>
         </div>
-        <p>Reporter values are empty or zero before the first usable prediction and after recognition stops. Boolean status blocks are useful when coordinating startup.</p>
+        <p>Reporter values are empty or zero before the first usable recognition result and after recognition stops. Boolean status blocks are useful when coordinating startup.</p>
       </div>
 
       <div class="card-grid">

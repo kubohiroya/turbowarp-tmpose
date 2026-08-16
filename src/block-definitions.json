@@ -4,7 +4,7 @@
     {"opcode":"versionReporter","blockType":"REPORTER","text":"TMPose version","description":"Returns the extension version."},
     {"opcode":"setModelURL","blockType":"COMMAND","text":"set model URL to [URL]","description":"Sets the Teachable Machine Pose model URL.","arguments":{"URL":{"type":"STRING","defaultValue":"https://teachablemachine.withgoogle.com/models/XXXX/"}}},
     {"opcode":"startCamera","blockType":"COMMAND","text":"start camera","description":"Starts the camera and attaches the preview."},
-    {"opcode":"stopCamera","blockType":"COMMAND","text":"stop camera","description":"Stops the camera and prediction loop."},
+    {"opcode":"stopCamera","blockType":"COMMAND","text":"stop camera","description":"Stops the camera and recognition loop."},
     {"opcode":"isCameraRunning","blockType":"BOOLEAN","text":"camera is running?","description":"Reports whether the camera is running."},
     {"opcode":"refreshCameraList","blockType":"COMMAND","text":"refresh camera list","description":"Refreshes the list of available video input devices."},
     {"opcode":"setCameraSelection","blockType":"COMMAND","text":"set camera to [CAMERA]","description":"Selects the default, front, back, or a detected camera and switches a running camera.","arguments":{"CAMERA":{"type":"STRING","menu":"cameraMenu","defaultValue":"default"}}},
@@ -26,9 +26,9 @@
     {"opcode":"setPoseConfidenceScaling","blockType":"COMMAND","text":"set pose [PROPERTY] confidence scaling [STATE]","description":"Scales the selected SVG style property from zero to its configured value using keypoint confidence.","featureFlag":"poseOverlay","arguments":{"PROPERTY":{"type":"STRING","menu":"poseConfidencePropertyMenu","defaultValue":"joint-opacity"},"STATE":{"type":"STRING","menu":"poseOverlayVisibilityMenu","defaultValue":"off"}}},
     {"opcode":"loadModel","blockType":"COMMAND","text":"load model","description":"Loads the configured pose model."},
     {"opcode":"isModelLoaded","blockType":"BOOLEAN","text":"model is loaded?","description":"Reports whether the model is loaded."},
-    {"opcode":"startPredict","blockType":"COMMAND","text":"start recognition","description":"Starts pose recognition."},
-    {"opcode":"stopPredict","blockType":"COMMAND","text":"stop recognition","description":"Stops pose recognition."},
-    {"opcode":"isPredicting","blockType":"BOOLEAN","text":"recognition is running?","description":"Reports whether recognition is running."},
+    {"opcode":"startRecognition","blockType":"COMMAND","text":"start recognition","description":"Starts pose recognition."},
+    {"opcode":"stopRecognition","blockType":"COMMAND","text":"stop recognition","description":"Stops pose recognition."},
+    {"opcode":"isRecognizing","blockType":"BOOLEAN","text":"recognition is running?","description":"Reports whether recognition is running."},
     {"opcode":"currentPoseReporter","blockType":"REPORTER","text":"current pose","description":"Returns the highest-scoring pose label."},
     {"opcode":"scoreReporter","blockType":"REPORTER","text":"confidence","description":"Returns the confidence of the current pose."},
     {"opcode":"poseScoreReporter","blockType":"REPORTER","text":"confidence of [NAME]","description":"Returns the confidence for a named pose.","arguments":{"NAME":{"type":"STRING","defaultValue":"jump"}}},
@@ -42,7 +42,7 @@
     {"opcode":"isPoseWithThreshold","blockType":"BOOLEAN","text":"pose is [NAME] with confidence at least [THRESHOLD]?","description":"Reports whether the named pose meets the given threshold.","arguments":{"NAME":{"type":"STRING","defaultValue":"jump"},"THRESHOLD":{"type":"NUMBER","defaultValue":0.75}}},
     {"opcode":"cameraMsReporter","blockType":"REPORTER","text":"camera startup time (ms)","description":"Returns camera startup time in milliseconds."},
     {"opcode":"modelLoadMsReporter","blockType":"REPORTER","text":"model load time (ms)","description":"Returns model load time in milliseconds."},
-    {"opcode":"firstPredictMsReporter","blockType":"REPORTER","text":"first recognition time (ms)","description":"Returns first prediction time in milliseconds."},
+    {"opcode":"firstRecognitionMsReporter","blockType":"REPORTER","text":"first recognition time (ms)","description":"Returns first recognition time in milliseconds."},
     {"opcode":"lastErrorReporter","blockType":"REPORTER","text":"last error","description":"Returns the latest recorded error message."}
   ]
 }

@@ -31,15 +31,15 @@ export interface TMPoseRuntime {
 export interface TMPoseExtensionDependencies {
   runtime?: TMPoseRuntime;
   allowRemoteLibraries?: boolean;
-  onAccumulatedPoseChanged?: (event: AccumulatedPoseChangedEventV1) => void;
+  onAccumulatedPoseChanged?: (event: AccumulatedPoseChangedEventV2) => void;
 }
 
-export interface AccumulatedPoseChangedEventV1 {
-  version: 1;
+export interface AccumulatedPoseChangedEventV2 {
+  version: 2;
   poseName: string;
   previousPoseName: string;
   score: number;
-  reason: 'prediction' | 'reset' | 'stop';
+  reason: 'recognition' | 'reset' | 'stop';
   timestamp: number;
 }
 
@@ -275,7 +275,7 @@ export class TMPoseExtension {
     this.activeCameraDeviceId = '';
     this.activeCameraDeviceName = '';
     this.cameraSelectionQueue = Promise.resolve();
-    this.predicting = false;
+    this.recognizing = false;
     this.loopStarted = false;
     this.loopGeneration = 0;
     this.activeModelOperations = new Map();
@@ -309,7 +309,7 @@ export class TMPoseExtension {
     this.latestPoseKeypoints = [];
     this.cameraMs = 0;
     this.modelLoadMs = 0;
-    this.firstPredictMs = 0;
+    this.firstRecognitionMs = 0;
     this.lastError = '';
     this.accumulatedPosePausedForBackground = isDocumentHidden();
     this.visibilityChangeListener = () => this.handleDocumentVisibilityChange();
@@ -385,7 +385,7 @@ export class TMPoseExtension {
     if (this.modelURL && !this.modelURL.endsWith('/')) this.modelURL += '/';
     this.model = null;
     this.modelLoadMs = 0;
-    this.firstPredictMs = 0;
+    this.firstRecognitionMs = 0;
   }
 
   async ensureLibrariesLoaded() {
@@ -458,7 +458,7 @@ export class TMPoseExtension {
 
   stopCamera() {
     try {
-      this.stopPredict();
+      this.stopRecognition();
       this.cleanupCameraResources();
       this.currentPoseName = '';
       this.score = 0;
@@ -715,34 +715,34 @@ export class TMPoseExtension {
     if (!model || typeof model !== 'object') {
       throw new TypeError('TMPose: Prepared model must be an object.');
     }
-    if (this.predicting && this.model !== model) {
+    if (this.recognizing && this.model !== model) {
       throw new Error('TMPose: Stop recognition before changing the active model.');
     }
     this.model = model;
     this.modelURL = '';
     this.modelLoadMs = 0;
-    this.firstPredictMs = 0;
+    this.firstRecognitionMs = 0;
   }
 
   clearPreparedModel(model) {
     if (model !== undefined && this.model !== model) return;
-    this.stopPredict();
+    this.stopRecognition();
     this.model = null;
     this.modelURL = '';
     this.modelLoadMs = 0;
-    this.firstPredictMs = 0;
+    this.firstRecognitionMs = 0;
   }
 
-  async startPredict() {
+  async startRecognition() {
     try {
       this.lastError = '';
-      const startingNewSession = !this.predicting;
+      const startingNewSession = !this.recognizing;
       if (!this.cameraRunning) await this.startCamera();
       await this.loadModel();
       if (startingNewSession && this.featureFlags.temporalPoseScoring) {
         this.startAccumulatedPoseSession();
       }
-      this.predicting = true;
+      this.recognizing = true;
       this.startLoopIfNeeded();
     } catch (error) {
       this.setLastError(error);
@@ -750,8 +750,8 @@ export class TMPoseExtension {
     }
   }
 
-  stopPredict() {
-    this.predicting = false;
+  stopRecognition() {
+    this.recognizing = false;
     this.currentPoseName = '';
     this.score = 0;
     this.predictions = {};
@@ -759,7 +759,7 @@ export class TMPoseExtension {
     this.resetAccumulatedPose('stop');
   }
 
-  isPredicting() { return this.predicting; }
+  isRecognizing() { return this.recognizing; }
 
   findStageElement() {
     try {
@@ -1107,9 +1107,9 @@ export class TMPoseExtension {
     }
     try {
       this.webcam.update();
-      if (this.predicting && this.model) {
+      if (this.recognizing && this.model) {
         const model = this.model;
-        const first = this.firstPredictMs === 0;
+        const first = this.firstRecognitionMs === 0;
         const startedAt = first ? performance.now() : 0;
         const recognition = await this.trackPreparedModelOperation(
           model,
@@ -1122,12 +1122,12 @@ export class TMPoseExtension {
         if (
           generation !== this.loopGeneration ||
           !this.cameraRunning ||
-          !this.predicting ||
+          !this.recognizing ||
           this.model !== model
         ) {
           // The old result is stale, but a still-running camera keeps its frame loop alive.
         } else {
-          if (first) this.firstPredictMs = Math.round(performance.now() - startedAt);
+          if (first) this.firstRecognitionMs = Math.round(performance.now() - startedAt);
           this.renderPoseOverlay(recognition.keypoints);
           let best = {className: '', probability: 0};
           this.predictions = {};
@@ -1184,11 +1184,11 @@ export class TMPoseExtension {
 
   emitAccumulatedPoseChanged(
     previousPoseName: string,
-    reason: AccumulatedPoseChangedEventV1['reason']
+    reason: AccumulatedPoseChangedEventV2['reason']
   ) {
     if (!this.supportsAccumulatedPoseEvents() || previousPoseName === this.accumulatedPoseName) return;
-    const payload: AccumulatedPoseChangedEventV1 = {
-      version: 1,
+    const payload: AccumulatedPoseChangedEventV2 = {
+      version: 2,
       poseName: this.accumulatedPoseName,
       previousPoseName,
       score: this.accumulatedScore,
@@ -1214,12 +1214,12 @@ export class TMPoseExtension {
     this.onAccumulatedPoseChanged = null;
   }
 
-  resetAccumulatedPose(reason: AccumulatedPoseChangedEventV1['reason'] = 'reset') {
+  resetAccumulatedPose(reason: AccumulatedPoseChangedEventV2['reason'] = 'reset') {
     const previousPoseName = this.accumulatedPoseName;
     this.accumulatedPoseName = '';
     this.accumulatedScore = 0;
     this.accumulatedPredictions = {};
-    this.lastAccumulationTime = this.predicting ? performance.now() : null;
+    this.lastAccumulationTime = this.recognizing ? performance.now() : null;
     this.emitAccumulatedPoseChanged(previousPoseName, reason);
   }
 
@@ -1231,7 +1231,7 @@ export class TMPoseExtension {
     }
     if (this.accumulatedPosePausedForBackground) {
       this.accumulatedPosePausedForBackground = false;
-      this.lastAccumulationTime = this.predicting ? performance.now() : null;
+      this.lastAccumulationTime = this.recognizing ? performance.now() : null;
     }
   }
 
@@ -1280,7 +1280,7 @@ export class TMPoseExtension {
     if (bestPoseName && this.accumulatedScore >= this.accumulatedPoseThreshold) {
       this.accumulatedPoseName = bestPoseName;
     }
-    this.emitAccumulatedPoseChanged(previousPoseName, 'prediction');
+    this.emitAccumulatedPoseChanged(previousPoseName, 'recognition');
   }
 
   accumulatedPoseReporter() { return this.accumulatedPoseName; }
@@ -1305,6 +1305,6 @@ export class TMPoseExtension {
 
   cameraMsReporter() { return this.cameraMs; }
   modelLoadMsReporter() { return this.modelLoadMs; }
-  firstPredictMsReporter() { return this.firstPredictMs; }
+  firstRecognitionMsReporter() { return this.firstRecognitionMs; }
   lastErrorReporter() { return this.lastError; }
 }

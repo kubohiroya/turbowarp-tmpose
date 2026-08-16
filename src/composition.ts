@@ -1,4 +1,4 @@
-import {TMPoseExtension, type AccumulatedPoseChangedEventV1} from './extension.js';
+import {TMPoseExtension, type AccumulatedPoseChangedEventV2} from './extension.js';
 import {
   isPoseKeypointName,
   type PoseBoneStyle,
@@ -7,7 +7,7 @@ import {
   type PoseOverlayConfidenceScaling
 } from './pose-overlay.js';
 
-export type {AccumulatedPoseChangedEventV1} from './extension.js';
+export type {AccumulatedPoseChangedEventV2} from './extension.js';
 export type {
   PoseBoneStyle,
   PoseJointStyle,
@@ -71,7 +71,7 @@ export interface CameraDevice {
   readonly label: string;
 }
 
-export type AccumulatedPoseListener = (event: Readonly<AccumulatedPoseChangedEventV1>) => void;
+export type AccumulatedPoseListener = (event: Readonly<AccumulatedPoseChangedEventV2>) => void;
 
 export interface TMPoseComposition {
   registerPoseModel(
@@ -953,7 +953,7 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
         ({signal} = validateRegistrationOptions(registrationOptions));
         if (signal?.aborted) throw abortError(name);
         files = validateFiles(input, createFile);
-        if (activeName === name && extension.isPredicting()) {
+        if (activeName === name && extension.isRecognizing()) {
           throw compositionError(
             'TMPOSE-COMPOSITION-005',
             `Stop recognition before replacing active pose model ${name}.`
@@ -981,7 +981,7 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
           `Pose model is not registered: ${normalizedName}`
         );
       }
-      if (extension.isPredicting() && activeName !== normalizedName) {
+      if (extension.isRecognizing() && activeName !== normalizedName) {
         throw compositionError(
           'TMPOSE-COMPOSITION-005',
           'Stop recognition before changing the active pose model.'
@@ -1236,15 +1236,15 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
       if (!activeName) {
         throw compositionError('TMPOSE-COMPOSITION-006', 'Activate a pose model first.');
       }
-      await extension.startPredict();
+      await extension.startRecognition();
     },
 
     stopRecognition() {
-      extension.stopPredict();
+      extension.stopRecognition();
     },
 
     isRecognizing() {
-      return extension.isPredicting();
+      return extension.isRecognizing();
     },
 
     currentPose() {
