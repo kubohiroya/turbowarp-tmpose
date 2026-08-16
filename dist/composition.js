@@ -1,14 +1,72 @@
 const extensionName = "TMPose";
-const blocks = [{ "opcode": "versionReporter", "blockType": "REPORTER", "text": "TMPose version", "description": "Returns the extension version." }, { "opcode": "setModelURL", "blockType": "COMMAND", "text": "set model URL to [URL]", "description": "Sets the Teachable Machine Pose model URL.", "arguments": { "URL": { "type": "STRING", "defaultValue": "https://teachablemachine.withgoogle.com/models/XXXX/" } } }, { "opcode": "startCamera", "blockType": "COMMAND", "text": "start camera", "description": "Starts the camera and attaches the preview." }, { "opcode": "stopCamera", "blockType": "COMMAND", "text": "stop camera", "description": "Stops the camera and prediction loop." }, { "opcode": "isCameraRunning", "blockType": "BOOLEAN", "text": "camera is running?", "description": "Reports whether the camera is running." }, { "opcode": "refreshCameraList", "blockType": "COMMAND", "text": "refresh camera list", "description": "Refreshes the list of available video input devices." }, { "opcode": "setCameraSelection", "blockType": "COMMAND", "text": "set camera to [CAMERA]", "description": "Selects the default, front, back, or a detected camera and switches a running camera.", "arguments": { "CAMERA": { "type": "STRING", "menu": "cameraMenu", "defaultValue": "default" } } }, { "opcode": "cameraCountReporter", "blockType": "REPORTER", "text": "camera count", "description": "Returns the number of video input devices found by the latest refresh." }, { "opcode": "cameraDeviceIdReporter", "blockType": "REPORTER", "text": "camera device ID", "description": "Returns the active camera device ID when available." }, { "opcode": "cameraDeviceNameReporter", "blockType": "REPORTER", "text": "camera device name", "description": "Returns the active camera device name when available." }, { "opcode": "showPreview", "blockType": "COMMAND", "text": "show camera preview", "description": "Shows the camera preview." }, { "opcode": "hidePreview", "blockType": "COMMAND", "text": "hide camera preview", "description": "Hides the camera preview." }, { "opcode": "isPreviewVisible", "blockType": "BOOLEAN", "text": "camera preview is visible?", "description": "Reports whether the preview is configured as visible." }, { "opcode": "setPreviewOpacity", "blockType": "COMMAND", "text": "set camera preview opacity to [OPACITY]", "description": "Sets preview opacity from 0 to 1.", "arguments": { "OPACITY": { "type": "NUMBER", "defaultValue": 0.6 } } }, { "opcode": "setPreviewPosition", "blockType": "COMMAND", "text": "set camera preview position to [POSITION]", "description": "Sets the preview position on the stage.", "arguments": { "POSITION": { "type": "STRING", "menu": "positionMenu", "defaultValue": "bottom-right" } } }, { "opcode": "setPreviewMirroring", "blockType": "COMMAND", "text": "set camera preview to [MIRRORING]", "description": "Sets whether the preview is mirrored without changing the recognition input.", "arguments": { "MIRRORING": { "type": "STRING", "menu": "previewMirroringMenu", "defaultValue": "mirrored" } } }, { "opcode": "previewMirroringReporter", "blockType": "REPORTER", "text": "camera preview mirroring", "description": "Returns mirrored or unmirrored for the current preview setting." }, { "opcode": "loadModel", "blockType": "COMMAND", "text": "load model", "description": "Loads the configured pose model." }, { "opcode": "isModelLoaded", "blockType": "BOOLEAN", "text": "model is loaded?", "description": "Reports whether the model is loaded." }, { "opcode": "startPredict", "blockType": "COMMAND", "text": "start recognition", "description": "Starts pose recognition." }, { "opcode": "stopPredict", "blockType": "COMMAND", "text": "stop recognition", "description": "Stops pose recognition." }, { "opcode": "isPredicting", "blockType": "BOOLEAN", "text": "recognition is running?", "description": "Reports whether recognition is running." }, { "opcode": "currentPoseReporter", "blockType": "REPORTER", "text": "current pose", "description": "Returns the highest-scoring pose label." }, { "opcode": "scoreReporter", "blockType": "REPORTER", "text": "confidence", "description": "Returns the confidence of the current pose." }, { "opcode": "poseScoreReporter", "blockType": "REPORTER", "text": "confidence of [NAME]", "description": "Returns the confidence for a named pose.", "arguments": { "NAME": { "type": "STRING", "defaultValue": "jump" } } }, { "opcode": "setAccumulatedPoseParameters", "blockType": "COMMAND", "text": "set accumulated pose accumulation [ACCUMULATION] decay [DECAY]", "description": "Sets the accumulation rate per second and the decay retained per second; decay changes apply to the next recognition session.", "featureFlag": "temporalPoseScoring", "arguments": { "ACCUMULATION": { "type": "NUMBER", "defaultValue": 1 }, "DECAY": { "type": "NUMBER", "defaultValue": 0.9 } } }, { "opcode": "setAccumulatedPoseThreshold", "blockType": "COMMAND", "text": "set accumulated pose threshold [THRESHOLD]", "description": "Sets the minimum accumulated score required to report a pose; values below the threshold report an empty string.", "featureFlag": "temporalPoseScoring", "arguments": { "THRESHOLD": { "type": "NUMBER", "defaultValue": 0 } } }, { "opcode": "resetAccumulatedPose", "blockType": "COMMAND", "text": "reset accumulated pose scores", "description": "Clears all accumulated pose scores.", "featureFlag": "temporalPoseScoring" }, { "opcode": "accumulatedPoseReporter", "blockType": "REPORTER", "text": "accumulated pose", "description": "Returns the pose label whose accumulated score is highest and meets the threshold, or an empty string otherwise.", "featureFlag": "temporalPoseScoring" }, { "opcode": "accumulatedScoreReporter", "blockType": "REPORTER", "text": "accumulated score", "description": "Returns the highest accumulated pose score without rounding.", "featureFlag": "temporalPoseScoring" }, { "opcode": "accumulatedPoseScoreReporter", "blockType": "REPORTER", "text": "accumulated score of [NAME]", "description": "Returns the accumulated score for a named pose without rounding.", "featureFlag": "temporalPoseScoring", "arguments": { "NAME": { "type": "STRING", "defaultValue": "jump" } } }, { "opcode": "isPose", "blockType": "BOOLEAN", "text": "pose is [NAME]?", "description": "Reports whether the named pose has at least 0.75 confidence.", "arguments": { "NAME": { "type": "STRING", "defaultValue": "jump" } } }, { "opcode": "isPoseWithThreshold", "blockType": "BOOLEAN", "text": "pose is [NAME] with confidence at least [THRESHOLD]?", "description": "Reports whether the named pose meets the given threshold.", "arguments": { "NAME": { "type": "STRING", "defaultValue": "jump" }, "THRESHOLD": { "type": "NUMBER", "defaultValue": 0.75 } } }, { "opcode": "cameraMsReporter", "blockType": "REPORTER", "text": "camera startup time (ms)", "description": "Returns camera startup time in milliseconds." }, { "opcode": "modelLoadMsReporter", "blockType": "REPORTER", "text": "model load time (ms)", "description": "Returns model load time in milliseconds." }, { "opcode": "firstPredictMsReporter", "blockType": "REPORTER", "text": "first recognition time (ms)", "description": "Returns first prediction time in milliseconds." }, { "opcode": "lastErrorReporter", "blockType": "REPORTER", "text": "last error", "description": "Returns the latest recorded error message." }];
+const blocks = [{ "opcode": "versionReporter", "blockType": "REPORTER", "text": "TMPose version", "description": "Returns the extension version." }, { "opcode": "setModelURL", "blockType": "COMMAND", "text": "set model URL to [URL]", "description": "Sets the Teachable Machine Pose model URL.", "arguments": { "URL": { "type": "STRING", "defaultValue": "https://teachablemachine.withgoogle.com/models/XXXX/" } } }, { "opcode": "startCamera", "blockType": "COMMAND", "text": "start camera", "description": "Starts the camera and attaches the preview." }, { "opcode": "stopCamera", "blockType": "COMMAND", "text": "stop camera", "description": "Stops the camera and prediction loop." }, { "opcode": "isCameraRunning", "blockType": "BOOLEAN", "text": "camera is running?", "description": "Reports whether the camera is running." }, { "opcode": "refreshCameraList", "blockType": "COMMAND", "text": "refresh camera list", "description": "Refreshes the list of available video input devices." }, { "opcode": "setCameraSelection", "blockType": "COMMAND", "text": "set camera to [CAMERA]", "description": "Selects the default, front, back, or a detected camera and switches a running camera.", "arguments": { "CAMERA": { "type": "STRING", "menu": "cameraMenu", "defaultValue": "default" } } }, { "opcode": "cameraCountReporter", "blockType": "REPORTER", "text": "camera count", "description": "Returns the number of video input devices found by the latest refresh." }, { "opcode": "cameraDeviceIdReporter", "blockType": "REPORTER", "text": "camera device ID", "description": "Returns the active camera device ID when available." }, { "opcode": "cameraDeviceNameReporter", "blockType": "REPORTER", "text": "camera device name", "description": "Returns the active camera device name when available." }, { "opcode": "showPreview", "blockType": "COMMAND", "text": "show camera preview", "description": "Shows the camera preview." }, { "opcode": "hidePreview", "blockType": "COMMAND", "text": "hide camera preview", "description": "Hides the camera preview." }, { "opcode": "isPreviewVisible", "blockType": "BOOLEAN", "text": "camera preview is visible?", "description": "Reports whether the preview is configured as visible." }, { "opcode": "setPreviewOpacity", "blockType": "COMMAND", "text": "set camera preview opacity to [OPACITY]", "description": "Sets preview opacity from 0 to 1.", "arguments": { "OPACITY": { "type": "NUMBER", "defaultValue": 0.6 } } }, { "opcode": "setPreviewPosition", "blockType": "COMMAND", "text": "set camera preview position to [POSITION]", "description": "Sets the preview position on the stage.", "arguments": { "POSITION": { "type": "STRING", "menu": "positionMenu", "defaultValue": "bottom-right" } } }, { "opcode": "setPreviewMirroring", "blockType": "COMMAND", "text": "set camera preview to [MIRRORING]", "description": "Sets whether the preview is mirrored without changing the recognition input.", "arguments": { "MIRRORING": { "type": "STRING", "menu": "previewMirroringMenu", "defaultValue": "mirrored" } } }, { "opcode": "previewMirroringReporter", "blockType": "REPORTER", "text": "camera preview mirroring", "description": "Returns mirrored or unmirrored for the current preview setting." }, { "opcode": "setPoseOverlayVisibility", "blockType": "COMMAND", "text": "set pose overlay [VISIBILITY]", "description": "Shows or hides the SVG pose overlay without stopping recognition.", "featureFlag": "poseOverlay", "arguments": { "VISIBILITY": { "type": "STRING", "menu": "poseOverlayVisibilityMenu", "defaultValue": "on" } } }, { "opcode": "isPoseOverlayVisible", "blockType": "BOOLEAN", "text": "pose overlay is visible?", "description": "Reports whether the SVG pose overlay is configured as visible.", "featureFlag": "poseOverlay" }, { "opcode": "setPoseJointStyle", "blockType": "COMMAND", "text": "set [PART] joint color [COLOR] opacity [OPACITY] radius [RADIUS]", "description": "Sets the SVG circle style for one PoseNet joint.", "featureFlag": "poseOverlay", "arguments": { "PART": { "type": "STRING", "menu": "poseKeypointMenu", "defaultValue": "nose" }, "COLOR": { "type": "STRING", "defaultValue": "#00e5ff" }, "OPACITY": { "type": "NUMBER", "defaultValue": 1 }, "RADIUS": { "type": "NUMBER", "defaultValue": 4 } } }, { "opcode": "setPoseBoneStyle", "blockType": "COMMAND", "text": "set pose bone color [COLOR] opacity [OPACITY] width [WIDTH]", "description": "Sets the color, opacity, and line width for all SVG pose bones.", "featureFlag": "poseOverlay", "arguments": { "COLOR": { "type": "STRING", "defaultValue": "#00e5ff" }, "OPACITY": { "type": "NUMBER", "defaultValue": 0.9 }, "WIDTH": { "type": "NUMBER", "defaultValue": 3 } } }, { "opcode": "setPoseOverlayMinimumConfidence", "blockType": "COMMAND", "text": "set pose overlay minimum confidence to [CONFIDENCE]", "description": "Hides joints and bones whose keypoint confidence is below the given value.", "featureFlag": "poseOverlay", "arguments": { "CONFIDENCE": { "type": "NUMBER", "defaultValue": 0.5 } } }, { "opcode": "setPoseConfidenceScaling", "blockType": "COMMAND", "text": "set pose [PROPERTY] confidence scaling [STATE]", "description": "Scales the selected SVG style property from zero to its configured value using keypoint confidence.", "featureFlag": "poseOverlay", "arguments": { "PROPERTY": { "type": "STRING", "menu": "poseConfidencePropertyMenu", "defaultValue": "joint-opacity" }, "STATE": { "type": "STRING", "menu": "poseOverlayVisibilityMenu", "defaultValue": "off" } } }, { "opcode": "loadModel", "blockType": "COMMAND", "text": "load model", "description": "Loads the configured pose model." }, { "opcode": "isModelLoaded", "blockType": "BOOLEAN", "text": "model is loaded?", "description": "Reports whether the model is loaded." }, { "opcode": "startPredict", "blockType": "COMMAND", "text": "start recognition", "description": "Starts pose recognition." }, { "opcode": "stopPredict", "blockType": "COMMAND", "text": "stop recognition", "description": "Stops pose recognition." }, { "opcode": "isPredicting", "blockType": "BOOLEAN", "text": "recognition is running?", "description": "Reports whether recognition is running." }, { "opcode": "currentPoseReporter", "blockType": "REPORTER", "text": "current pose", "description": "Returns the highest-scoring pose label." }, { "opcode": "scoreReporter", "blockType": "REPORTER", "text": "confidence", "description": "Returns the confidence of the current pose." }, { "opcode": "poseScoreReporter", "blockType": "REPORTER", "text": "confidence of [NAME]", "description": "Returns the confidence for a named pose.", "arguments": { "NAME": { "type": "STRING", "defaultValue": "jump" } } }, { "opcode": "setAccumulatedPoseParameters", "blockType": "COMMAND", "text": "set accumulated pose accumulation [ACCUMULATION] decay [DECAY]", "description": "Sets the accumulation rate per second and the decay retained per second; decay changes apply to the next recognition session.", "featureFlag": "temporalPoseScoring", "arguments": { "ACCUMULATION": { "type": "NUMBER", "defaultValue": 1 }, "DECAY": { "type": "NUMBER", "defaultValue": 0.9 } } }, { "opcode": "setAccumulatedPoseThreshold", "blockType": "COMMAND", "text": "set accumulated pose threshold [THRESHOLD]", "description": "Sets the minimum accumulated score required to report a pose; values below the threshold report an empty string.", "featureFlag": "temporalPoseScoring", "arguments": { "THRESHOLD": { "type": "NUMBER", "defaultValue": 0 } } }, { "opcode": "resetAccumulatedPose", "blockType": "COMMAND", "text": "reset accumulated pose scores", "description": "Clears all accumulated pose scores.", "featureFlag": "temporalPoseScoring" }, { "opcode": "accumulatedPoseReporter", "blockType": "REPORTER", "text": "accumulated pose", "description": "Returns the pose label whose accumulated score is highest and meets the threshold, or an empty string otherwise.", "featureFlag": "temporalPoseScoring" }, { "opcode": "accumulatedScoreReporter", "blockType": "REPORTER", "text": "accumulated score", "description": "Returns the highest accumulated pose score without rounding.", "featureFlag": "temporalPoseScoring" }, { "opcode": "accumulatedPoseScoreReporter", "blockType": "REPORTER", "text": "accumulated score of [NAME]", "description": "Returns the accumulated score for a named pose without rounding.", "featureFlag": "temporalPoseScoring", "arguments": { "NAME": { "type": "STRING", "defaultValue": "jump" } } }, { "opcode": "isPose", "blockType": "BOOLEAN", "text": "pose is [NAME]?", "description": "Reports whether the named pose has at least 0.75 confidence.", "arguments": { "NAME": { "type": "STRING", "defaultValue": "jump" } } }, { "opcode": "isPoseWithThreshold", "blockType": "BOOLEAN", "text": "pose is [NAME] with confidence at least [THRESHOLD]?", "description": "Reports whether the named pose meets the given threshold.", "arguments": { "NAME": { "type": "STRING", "defaultValue": "jump" }, "THRESHOLD": { "type": "NUMBER", "defaultValue": 0.75 } } }, { "opcode": "cameraMsReporter", "blockType": "REPORTER", "text": "camera startup time (ms)", "description": "Returns camera startup time in milliseconds." }, { "opcode": "modelLoadMsReporter", "blockType": "REPORTER", "text": "model load time (ms)", "description": "Returns model load time in milliseconds." }, { "opcode": "firstPredictMsReporter", "blockType": "REPORTER", "text": "first recognition time (ms)", "description": "Returns first prediction time in milliseconds." }, { "opcode": "lastErrorReporter", "blockType": "REPORTER", "text": "last error", "description": "Returns the latest recorded error message." }];
 const definitions = {
   extensionName,
   blocks
 };
 const FEATURE_FLAGS = {
   temporalPoseScoring: false,
-  accumulatedPoseEvents: false
+  accumulatedPoseEvents: false,
+  poseOverlay: true
 };
-const version = "1.10.3";
+const POSE_KEYPOINT_NAMES = [
+  "nose",
+  "leftEye",
+  "rightEye",
+  "leftEar",
+  "rightEar",
+  "leftShoulder",
+  "rightShoulder",
+  "leftElbow",
+  "rightElbow",
+  "leftWrist",
+  "rightWrist",
+  "leftHip",
+  "rightHip",
+  "leftKnee",
+  "rightKnee",
+  "leftAnkle",
+  "rightAnkle"
+];
+const POSE_BONE_CONNECTIONS = Object.freeze([
+  ["leftHip", "leftShoulder"],
+  ["leftElbow", "leftShoulder"],
+  ["leftElbow", "leftWrist"],
+  ["leftHip", "leftKnee"],
+  ["leftKnee", "leftAnkle"],
+  ["rightHip", "rightShoulder"],
+  ["rightElbow", "rightShoulder"],
+  ["rightElbow", "rightWrist"],
+  ["rightHip", "rightKnee"],
+  ["rightKnee", "rightAnkle"],
+  ["leftShoulder", "rightShoulder"],
+  ["leftHip", "rightHip"]
+]);
+const DEFAULT_POSE_JOINT_STYLE = Object.freeze({
+  color: "#00e5ff",
+  opacity: 1,
+  radius: 4
+});
+const DEFAULT_POSE_BONE_STYLE = Object.freeze({
+  color: "#00e5ff",
+  opacity: 0.9,
+  width: 3
+});
+const DEFAULT_POSE_OVERLAY_CONFIDENCE_SCALING = Object.freeze({
+  jointOpacity: false,
+  jointRadius: false,
+  boneOpacity: false,
+  boneWidth: false
+});
+function isPoseKeypointName(value) {
+  return POSE_KEYPOINT_NAMES.includes(value);
+}
+function confidenceMultiplier(value) {
+  const confidence = Number(value);
+  if (!Number.isFinite(confidence)) return 0;
+  return Math.max(0, Math.min(1, confidence));
+}
+const version = "1.11.0";
 const packageMetadata = {
   version
 };
@@ -54,6 +112,26 @@ const PREVIEW_MIRRORING_ALIASES = {
   "左右反転": true,
   "そのまま": false
 };
+const POSE_OVERLAY_VISIBILITY_ITEMS = [
+  { text: "on", value: "on" },
+  { text: "off", value: "off" }
+];
+const POSE_OVERLAY_VISIBILITY_ALIASES = {
+  on: true,
+  off: false,
+  show: true,
+  hide: false,
+  true: true,
+  false: false,
+  表示: true,
+  非表示: false
+};
+const POSE_CONFIDENCE_PROPERTY_ITEMS = [
+  { text: "joint opacity", value: "joint-opacity" },
+  { text: "joint radius", value: "joint-radius" },
+  { text: "bone opacity", value: "bone-opacity" },
+  { text: "bone width", value: "bone-width" }
+];
 const CAMERA_SELECTION_ITEMS = [
   { text: "default camera", value: "default" },
   { text: "front camera", value: "front" },
@@ -84,6 +162,18 @@ function normalizeCameraSelection(value) {
     return { kind: "preference", value: normalized };
   }
   return { kind: "device", value: selection };
+}
+function normalizePoseOverlayVisibility(value) {
+  return POSE_OVERLAY_VISIBILITY_ALIASES[String(value ?? "on").trim().toLowerCase()] ?? true;
+}
+function normalizePoseStyleNumber(value, fallback, maximum) {
+  const number = value === "" ? fallback : Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(0, maximum === void 0 ? number : Math.min(maximum, number));
+}
+function normalizePoseColor(value, fallback) {
+  const color = String(value ?? "").trim();
+  return color || fallback;
 }
 function cameraConstraints(selection) {
   if (selection.kind === "device") return { deviceId: { exact: selection.value } };
@@ -190,6 +280,17 @@ class TMPoseExtension {
     this.previewVisible = true;
     this.previewCanvas = null;
     this.previewStageElement = null;
+    this.poseOverlayVisible = true;
+    this.poseOverlayMinimumConfidence = 0.5;
+    this.poseJointStyles = Object.fromEntries(
+      POSE_KEYPOINT_NAMES.map((part) => [part, { ...DEFAULT_POSE_JOINT_STYLE }])
+    );
+    this.poseBoneStyle = { ...DEFAULT_POSE_BONE_STYLE };
+    this.poseConfidenceScaling = { ...DEFAULT_POSE_OVERLAY_CONFIDENCE_SCALING };
+    this.poseOverlaySvg = null;
+    this.poseOverlayJointElements = /* @__PURE__ */ new Map();
+    this.poseOverlayBoneElements = [];
+    this.latestPoseKeypoints = [];
     this.cameraMs = 0;
     this.modelLoadMs = 0;
     this.firstPredictMs = 0;
@@ -231,6 +332,24 @@ class TMPoseExtension {
           acceptReporters: true,
           items: PREVIEW_MIRRORING_ITEMS.map((item) => ({ text: Scratch.translate(item.text), value: item.value }))
         },
+        poseOverlayVisibilityMenu: {
+          acceptReporters: true,
+          items: POSE_OVERLAY_VISIBILITY_ITEMS.map((item) => ({
+            text: Scratch.translate(item.text),
+            value: item.value
+          }))
+        },
+        poseKeypointMenu: {
+          acceptReporters: true,
+          items: POSE_KEYPOINT_NAMES.map((part) => ({ text: part, value: part }))
+        },
+        poseConfidencePropertyMenu: {
+          acceptReporters: true,
+          items: POSE_CONFIDENCE_PROPERTY_ITEMS.map((item) => ({
+            text: Scratch.translate(item.text),
+            value: item.value
+          }))
+        },
         cameraMenu: {
           acceptReporters: true,
           items: "getCameraMenuItems"
@@ -271,8 +390,13 @@ class TMPoseExtension {
       video.srcObject = null;
     }
     this.previewCanvas?.parentNode?.removeChild(this.previewCanvas);
+    this.poseOverlaySvg?.parentNode?.removeChild(this.poseOverlaySvg);
     this.previewCanvas = null;
     this.previewStageElement = null;
+    this.poseOverlaySvg = null;
+    this.poseOverlayJointElements = /* @__PURE__ */ new Map();
+    this.poseOverlayBoneElements = [];
+    this.latestPoseKeypoints = [];
     this.webcam = null;
     this.cameraRunning = false;
     this.activeCameraDeviceId = "";
@@ -430,6 +554,7 @@ class TMPoseExtension {
       if (!this.webcam?.canvas) throw new Error("TMPose: Start the camera before showing the preview.");
       this.attachPreviewToStage();
       this.previewCanvas.style.display = "block";
+      this.updatePoseOverlayVisibility();
       this.validatePreviewAttachment(this.previewStageElement, this.previewCanvas);
     } catch (error) {
       this.setLastError(error);
@@ -439,6 +564,7 @@ class TMPoseExtension {
   hidePreview() {
     this.previewVisible = false;
     if (this.previewCanvas) this.previewCanvas.style.display = "none";
+    this.updatePoseOverlayVisibility();
   }
   isPreviewVisible() {
     return this.previewVisible;
@@ -462,6 +588,60 @@ class TMPoseExtension {
   }
   previewMirroringReporter() {
     return this.previewMirrored ? "mirrored" : "unmirrored";
+  }
+  setPoseOverlayVisibility(args) {
+    this.poseOverlayVisible = normalizePoseOverlayVisibility(args.VISIBILITY);
+    this.updatePoseOverlayVisibility();
+  }
+  showPoseOverlay() {
+    this.poseOverlayVisible = true;
+    this.updatePoseOverlayVisibility();
+  }
+  hidePoseOverlay() {
+    this.poseOverlayVisible = false;
+    this.updatePoseOverlayVisibility();
+  }
+  isPoseOverlayVisible() {
+    return this.featureFlags.poseOverlay && this.poseOverlayVisible;
+  }
+  setPoseJointStyle(args) {
+    const part = String(args.PART ?? "");
+    if (!isPoseKeypointName(part)) throw new Error(`TMPose: Unknown PoseNet joint: ${part}`);
+    const previous = this.poseJointStyles[part];
+    this.poseJointStyles[part] = {
+      color: normalizePoseColor(args.COLOR, previous.color),
+      opacity: normalizePoseStyleNumber(args.OPACITY, previous.opacity, 1),
+      radius: normalizePoseStyleNumber(args.RADIUS, previous.radius)
+    };
+    this.redrawPoseOverlay();
+  }
+  setPoseBoneStyle(args) {
+    this.poseBoneStyle = {
+      color: normalizePoseColor(args.COLOR, this.poseBoneStyle.color),
+      opacity: normalizePoseStyleNumber(args.OPACITY, this.poseBoneStyle.opacity, 1),
+      width: normalizePoseStyleNumber(args.WIDTH, this.poseBoneStyle.width)
+    };
+    this.redrawPoseOverlay();
+  }
+  setPoseOverlayMinimumConfidence(args) {
+    this.poseOverlayMinimumConfidence = normalizePoseStyleNumber(
+      args.CONFIDENCE,
+      this.poseOverlayMinimumConfidence,
+      1
+    );
+    this.redrawPoseOverlay();
+  }
+  setPoseConfidenceScaling(args) {
+    const property = String(args.PROPERTY ?? "");
+    const key = {
+      "joint-opacity": "jointOpacity",
+      "joint-radius": "jointRadius",
+      "bone-opacity": "boneOpacity",
+      "bone-width": "boneWidth"
+    }[property];
+    if (!key) throw new Error(`TMPose: Unknown confidence-scaled property: ${property}`);
+    this.poseConfidenceScaling[key] = normalizePoseOverlayVisibility(args.STATE);
+    this.redrawPoseOverlay();
   }
   async loadModel() {
     if (this.model) return;
@@ -527,6 +707,7 @@ class TMPoseExtension {
     this.currentPoseName = "";
     this.score = 0;
     this.predictions = {};
+    this.clearPoseOverlay();
     this.resetAccumulatedPose("stop");
   }
   isPredicting() {
@@ -579,6 +760,121 @@ class TMPoseExtension {
       }
     }
   }
+  createSvgElement(name) {
+    if (typeof document.createElementNS === "function") {
+      return document.createElementNS("http://www.w3.org/2000/svg", name);
+    }
+    return document.createElement(name);
+  }
+  ensurePoseOverlayElement() {
+    if (!this.featureFlags.poseOverlay) return null;
+    if (this.poseOverlaySvg) return this.poseOverlaySvg;
+    const svg = this.createSvgElement("svg");
+    svg.setAttribute("viewBox", "0 0 320 240");
+    svg.setAttribute("width", "320");
+    svg.setAttribute("height", "240");
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("focusable", "false");
+    const boneGroup = this.createSvgElement("g");
+    boneGroup.setAttribute("data-layer", "bones");
+    this.poseOverlayBoneElements = POSE_BONE_CONNECTIONS.map(([first, second]) => {
+      const line = this.createSvgElement("line");
+      line.setAttribute("data-bone", `${first}-${second}`);
+      line.setAttribute("stroke-linecap", "round");
+      line.style.display = "none";
+      boneGroup.appendChild(line);
+      return { first, second, line };
+    });
+    svg.appendChild(boneGroup);
+    const jointGroup = this.createSvgElement("g");
+    jointGroup.setAttribute("data-layer", "joints");
+    this.poseOverlayJointElements = /* @__PURE__ */ new Map();
+    for (const part of POSE_KEYPOINT_NAMES) {
+      const circle = this.createSvgElement("circle");
+      circle.setAttribute("data-joint", part);
+      circle.style.display = "none";
+      jointGroup.appendChild(circle);
+      this.poseOverlayJointElements.set(part, circle);
+    }
+    svg.appendChild(jointGroup);
+    this.poseOverlaySvg = svg;
+    return svg;
+  }
+  updatePoseOverlayVisibility() {
+    if (!this.poseOverlaySvg) return;
+    this.poseOverlaySvg.style.display = this.previewVisible && this.poseOverlayVisible ? "block" : "none";
+  }
+  clearPoseOverlay() {
+    this.latestPoseKeypoints = [];
+    for (const circle of this.poseOverlayJointElements.values()) {
+      circle.style.display = "none";
+    }
+    for (const { line } of this.poseOverlayBoneElements) line.style.display = "none";
+  }
+  redrawPoseOverlay() {
+    if (this.latestPoseKeypoints.length > 0) {
+      this.renderPoseOverlay(this.latestPoseKeypoints);
+    }
+  }
+  renderPoseOverlay(keypoints) {
+    if (!this.featureFlags.poseOverlay || !this.poseOverlaySvg || !Array.isArray(keypoints)) {
+      this.clearPoseOverlay();
+      return;
+    }
+    this.latestPoseKeypoints = keypoints;
+    const recognized = /* @__PURE__ */ new Map();
+    for (const candidate of keypoints) {
+      if (typeof candidate !== "object" || candidate === null || !isPoseKeypointName(candidate.part)) {
+        continue;
+      }
+      const keypoint = candidate;
+      const x = Number(keypoint.position?.x);
+      const y = Number(keypoint.position?.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      recognized.set(keypoint.part, {
+        part: keypoint.part,
+        score: confidenceMultiplier(keypoint.score),
+        position: { x, y }
+      });
+    }
+    for (const part of POSE_KEYPOINT_NAMES) {
+      const circle = this.poseOverlayJointElements.get(part);
+      const keypoint = recognized.get(part);
+      if (!circle || !keypoint || keypoint.score < this.poseOverlayMinimumConfidence) {
+        if (circle) circle.style.display = "none";
+        continue;
+      }
+      const style = this.poseJointStyles[part];
+      const opacityMultiplier = this.poseConfidenceScaling.jointOpacity ? keypoint.score : 1;
+      const radiusMultiplier = this.poseConfidenceScaling.jointRadius ? keypoint.score : 1;
+      circle.setAttribute("cx", String(keypoint.position.x));
+      circle.setAttribute("cy", String(keypoint.position.y));
+      circle.setAttribute("r", String(style.radius * radiusMultiplier));
+      circle.setAttribute("fill", style.color);
+      circle.setAttribute("fill-opacity", String(style.opacity * opacityMultiplier));
+      circle.style.display = "block";
+    }
+    for (const { first, second, line } of this.poseOverlayBoneElements) {
+      const firstKeypoint = recognized.get(first);
+      const secondKeypoint = recognized.get(second);
+      if (!firstKeypoint || !secondKeypoint || firstKeypoint.score < this.poseOverlayMinimumConfidence || secondKeypoint.score < this.poseOverlayMinimumConfidence) {
+        line.style.display = "none";
+        continue;
+      }
+      const confidence = Math.min(firstKeypoint.score, secondKeypoint.score);
+      const opacityMultiplier = this.poseConfidenceScaling.boneOpacity ? confidence : 1;
+      const widthMultiplier = this.poseConfidenceScaling.boneWidth ? confidence : 1;
+      line.setAttribute("x1", String(firstKeypoint.position.x));
+      line.setAttribute("y1", String(firstKeypoint.position.y));
+      line.setAttribute("x2", String(secondKeypoint.position.x));
+      line.setAttribute("y2", String(secondKeypoint.position.y));
+      line.setAttribute("stroke", this.poseBoneStyle.color);
+      line.setAttribute("stroke-opacity", String(this.poseBoneStyle.opacity * opacityMultiplier));
+      line.setAttribute("stroke-width", String(this.poseBoneStyle.width * widthMultiplier));
+      line.style.display = "block";
+    }
+  }
   attachPreviewToStage() {
     if (!this.webcam) throw new Error("TMPose: Start the camera before attaching the preview.");
     if (!this.webcam.canvas) throw new Error("TMPose: webcam.canvas is unavailable.");
@@ -592,6 +888,7 @@ class TMPoseExtension {
     }
     this.previewCanvas = canvas;
     this.previewStageElement = stage;
+    const overlay = this.ensurePoseOverlayElement();
     const computed = window.getComputedStyle(stage);
     if (computed.position === "static") stage.style.position = "relative";
     stage.style.overflow = "hidden";
@@ -606,61 +903,106 @@ class TMPoseExtension {
       display: this.previewVisible ? "block" : "none",
       boxSizing: "border-box"
     });
+    if (overlay) {
+      Object.assign(overlay.style, {
+        position: "absolute",
+        zIndex: "auto",
+        pointerEvents: "none",
+        border: "2px solid transparent",
+        background: "transparent",
+        display: this.previewVisible && this.poseOverlayVisible ? "block" : "none",
+        boxSizing: "border-box",
+        overflow: "hidden"
+      });
+    }
+    let insertionPoint = stageCanvas?.nextSibling ?? null;
+    while (insertionPoint && (insertionPoint === canvas || insertionPoint === overlay)) {
+      insertionPoint = insertionPoint.nextSibling;
+    }
     if (stageCanvas && typeof stage.insertBefore === "function") {
-      stage.insertBefore(canvas, stageCanvas.nextSibling);
+      stage.insertBefore(canvas, insertionPoint);
     } else if (canvas.parentNode !== stage) {
       stage.appendChild(canvas);
     }
+    if (overlay) {
+      if (stageCanvas && typeof stage.insertBefore === "function") {
+        stage.insertBefore(overlay, insertionPoint);
+      } else if (overlay.parentNode !== stage) {
+        stage.appendChild(overlay);
+      }
+    }
     this.updatePreviewStyle();
+    this.updatePoseOverlayVisibility();
     this.validatePreviewAttachment(stage, canvas);
   }
   updatePreviewStyle() {
     const canvas = this.previewCanvas;
     if (!canvas) throw new Error("TMPose: Start the camera before positioning the preview.");
-    Object.assign(canvas.style, {
-      left: "",
-      right: "",
-      top: "",
-      bottom: "",
-      transform: "",
-      objectFit: "",
-      width: "35%",
-      height: "auto",
-      borderRadius: "8px"
-    });
+    const targets = [canvas, this.poseOverlaySvg].filter(Boolean);
+    for (const target of targets) {
+      Object.assign(target.style, {
+        left: "",
+        right: "",
+        top: "",
+        bottom: "",
+        transform: "",
+        objectFit: "",
+        width: "35%",
+        height: "auto",
+        borderRadius: "8px"
+      });
+    }
     let positionTransform = "";
     switch (this.previewPosition) {
       case "top-left":
-        canvas.style.left = "8px";
-        canvas.style.top = "8px";
+        for (const target of targets) {
+          target.style.left = "8px";
+          target.style.top = "8px";
+        }
         break;
       case "top-right":
-        canvas.style.right = "8px";
-        canvas.style.top = "8px";
+        for (const target of targets) {
+          target.style.right = "8px";
+          target.style.top = "8px";
+        }
         break;
       case "bottom-left":
-        canvas.style.left = "8px";
-        canvas.style.bottom = "8px";
+        for (const target of targets) {
+          target.style.left = "8px";
+          target.style.bottom = "8px";
+        }
         break;
       case "center":
-        canvas.style.left = "50%";
-        canvas.style.top = "50%";
+        for (const target of targets) {
+          target.style.left = "50%";
+          target.style.top = "50%";
+        }
         positionTransform = "translate(-50%, -50%)";
         break;
       case "full-stage":
-        canvas.style.left = "0";
-        canvas.style.top = "0";
-        canvas.style.width = "100%";
-        canvas.style.height = "100%";
-        canvas.style.objectFit = "cover";
-        canvas.style.borderRadius = "0";
+        for (const target of targets) {
+          target.style.left = "0";
+          target.style.top = "0";
+          target.style.width = "100%";
+          target.style.height = "100%";
+          target.style.objectFit = "cover";
+          target.style.borderRadius = "0";
+        }
         break;
       default:
-        canvas.style.right = "8px";
-        canvas.style.bottom = "8px";
+        for (const target of targets) {
+          target.style.right = "8px";
+          target.style.bottom = "8px";
+        }
     }
     const mirroringTransform = this.previewMirrored ? "" : "scaleX(-1)";
-    canvas.style.transform = [positionTransform, mirroringTransform].filter(Boolean).join(" ");
+    for (const target of targets) {
+      target.style.transform = [positionTransform, mirroringTransform].filter(Boolean).join(" ");
+    }
+    this.poseOverlaySvg?.setAttribute(
+      "preserveAspectRatio",
+      this.previewPosition === "full-stage" ? "xMidYMid slice" : "xMidYMid meet"
+    );
   }
   startLoopIfNeeded() {
     if (this.loopStarted || !this.cameraRunning || !this.webcam) return;
@@ -701,26 +1043,28 @@ class TMPoseExtension {
         const model = this.model;
         const first = this.firstPredictMs === 0;
         const startedAt = first ? performance.now() : 0;
-        const prediction = await this.trackPreparedModelOperation(
+        const recognition = await this.trackPreparedModelOperation(
           model,
           (async () => {
             const estimate = await model.estimatePose(this.webcam.canvas);
-            return model.predict(estimate.posenetOutput);
+            const prediction = await model.predict(estimate.posenetOutput);
+            return { keypoints: estimate.pose?.keypoints, prediction };
           })()
         );
         if (generation !== this.loopGeneration || !this.cameraRunning || !this.predicting || this.model !== model) {
         } else {
           if (first) this.firstPredictMs = Math.round(performance.now() - startedAt);
+          this.renderPoseOverlay(recognition.keypoints);
           let best = { className: "", probability: 0 };
           this.predictions = {};
-          for (const result of prediction) {
+          for (const result of recognition.prediction) {
             this.predictions[result.className] = result.probability;
             if (result.probability > best.probability) best = result;
           }
           this.currentPoseName = best.className;
           this.score = best.probability;
           if (this.featureFlags.temporalPoseScoring) {
-            this.updateAccumulatedPose(prediction);
+            this.updateAccumulatedPose(recognition.prediction);
           }
         }
       }
@@ -1026,6 +1370,72 @@ function validatePreviewOpacity(value) {
   }
   return value;
 }
+function validatePoseStyleColor(value, property) {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    throw compositionError(
+      "TMPOSE-COMPOSITION-016",
+      `Pose overlay ${property} must be a non-empty CSS color string.`
+    );
+  }
+  return value.trim();
+}
+function validatePoseStyleNumber(value, property, maximum) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || maximum !== void 0 && value > maximum) {
+    const range = maximum === void 0 ? "a non-negative finite number" : `from 0 to ${maximum}`;
+    throw compositionError(
+      "TMPOSE-COMPOSITION-016",
+      `Pose overlay ${property} must be ${range}.`
+    );
+  }
+  return value;
+}
+function validatePoseKeypointName(value) {
+  if (!isPoseKeypointName(value)) {
+    throw compositionError("TMPOSE-COMPOSITION-016", "Pose overlay joint name is invalid.");
+  }
+  return value;
+}
+function validatePoseJointStyle(value) {
+  if (!isRecord(value) || Object.keys(value).length !== 3 || !Object.hasOwn(value, "color") || !Object.hasOwn(value, "opacity") || !Object.hasOwn(value, "radius")) {
+    throw compositionError(
+      "TMPOSE-COMPOSITION-016",
+      "Pose joint style must provide color, opacity, and radius."
+    );
+  }
+  return {
+    color: validatePoseStyleColor(value.color, "joint color"),
+    opacity: validatePoseStyleNumber(value.opacity, "joint opacity", 1),
+    radius: validatePoseStyleNumber(value.radius, "joint radius")
+  };
+}
+function validatePoseBoneStyle(value) {
+  if (!isRecord(value) || Object.keys(value).length !== 3 || !Object.hasOwn(value, "color") || !Object.hasOwn(value, "opacity") || !Object.hasOwn(value, "width")) {
+    throw compositionError(
+      "TMPOSE-COMPOSITION-016",
+      "Pose bone style must provide color, opacity, and width."
+    );
+  }
+  return {
+    color: validatePoseStyleColor(value.color, "bone color"),
+    opacity: validatePoseStyleNumber(value.opacity, "bone opacity", 1),
+    width: validatePoseStyleNumber(value.width, "bone width")
+  };
+}
+function validatePoseOverlayConfidenceScaling(value) {
+  const keys = ["jointOpacity", "jointRadius", "boneOpacity", "boneWidth"];
+  if (!isRecord(value) || Object.keys(value).length !== keys.length || keys.some((key) => !Object.hasOwn(value, key) || typeof value[key] !== "boolean")) {
+    throw compositionError(
+      "TMPOSE-COMPOSITION-016",
+      "Pose confidence scaling must provide four boolean style options."
+    );
+  }
+  return {
+    jointOpacity: value.jointOpacity,
+    jointRadius: value.jointRadius,
+    boneOpacity: value.boneOpacity,
+    boneWidth: value.boneWidth
+  };
+}
 function validateCameraSelection(value) {
   if (value === "default" || value === "front" || value === "back") return value;
   if (!isRecord(value) || Object.keys(value).length !== 1 || !Object.hasOwn(value, "deviceId") || typeof value.deviceId !== "string" || value.deviceId.trim().length === 0) {
@@ -1134,7 +1544,7 @@ function createTMPoseComposition(options) {
   );
   const accumulatedPoseListeners = /* @__PURE__ */ new Set();
   const extension = new TMPoseExtension(
-    { temporalPoseScoring: true, accumulatedPoseEvents: true },
+    { temporalPoseScoring: true, accumulatedPoseEvents: true, poseOverlay: true },
     {
       runtime,
       allowRemoteLibraries: false,
@@ -1579,6 +1989,57 @@ function createTMPoseComposition(options) {
     setPreviewMirroring(mode) {
       ensureActive();
       extension.setPreviewMirroring({ MIRRORING: validatePreviewMirroring(mode) });
+    },
+    showPoseOverlay() {
+      ensureActive();
+      extension.showPoseOverlay();
+    },
+    hidePoseOverlay() {
+      ensureActive();
+      extension.hidePoseOverlay();
+    },
+    isPoseOverlayVisible() {
+      ensureActive();
+      return extension.isPoseOverlayVisible();
+    },
+    setPoseJointStyle(part, style) {
+      ensureActive();
+      const normalizedPart = validatePoseKeypointName(part);
+      const normalizedStyle = validatePoseJointStyle(style);
+      extension.setPoseJointStyle({
+        PART: normalizedPart,
+        COLOR: normalizedStyle.color,
+        OPACITY: normalizedStyle.opacity,
+        RADIUS: normalizedStyle.radius
+      });
+    },
+    setPoseBoneStyle(style) {
+      ensureActive();
+      const normalizedStyle = validatePoseBoneStyle(style);
+      extension.setPoseBoneStyle({
+        COLOR: normalizedStyle.color,
+        OPACITY: normalizedStyle.opacity,
+        WIDTH: normalizedStyle.width
+      });
+    },
+    setPoseOverlayMinimumConfidence(confidence) {
+      ensureActive();
+      extension.setPoseOverlayMinimumConfidence({
+        CONFIDENCE: validatePoseStyleNumber(confidence, "minimum confidence", 1)
+      });
+    },
+    setPoseOverlayConfidenceScaling(options2) {
+      ensureActive();
+      const scaling = validatePoseOverlayConfidenceScaling(options2);
+      const properties = [
+        ["joint-opacity", scaling.jointOpacity],
+        ["joint-radius", scaling.jointRadius],
+        ["bone-opacity", scaling.boneOpacity],
+        ["bone-width", scaling.boneWidth]
+      ];
+      for (const [property, enabled] of properties) {
+        extension.setPoseConfidenceScaling({ PROPERTY: property, STATE: enabled ? "on" : "off" });
+      }
     },
     async listCameraDevices() {
       ensureActive();

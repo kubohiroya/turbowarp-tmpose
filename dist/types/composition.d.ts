@@ -1,5 +1,7 @@
 import { type AccumulatedPoseChangedEventV1 } from './extension.js';
+import { type PoseBoneStyle, type PoseJointStyle, type PoseKeypointName, type PoseOverlayConfidenceScaling } from './pose-overlay.js';
 export type { AccumulatedPoseChangedEventV1 } from './extension.js';
+export type { PoseBoneStyle, PoseJointStyle, PoseKeypointName, PoseOverlayConfidenceScaling } from './pose-overlay.js';
 export interface TMPoseCompositionRuntime {
     Webcam: new (width: number, height: number, flipHorizontal: boolean) => unknown;
     loadFromFiles(model: File, weights: File, metadata: File, options?: Readonly<{
@@ -52,6 +54,13 @@ export interface TMPoseComposition {
     setPreviewOpacity(opacity: number): void;
     setPreviewPosition(position: PreviewPosition): void;
     setPreviewMirroring(mode: PreviewMirroring): void;
+    showPoseOverlay(): void;
+    hidePoseOverlay(): void;
+    isPoseOverlayVisible(): boolean;
+    setPoseJointStyle(part: PoseKeypointName, style: PoseJointStyle): void;
+    setPoseBoneStyle(style: PoseBoneStyle): void;
+    setPoseOverlayMinimumConfidence(confidence: number): void;
+    setPoseOverlayConfidenceScaling(options: PoseOverlayConfidenceScaling): void;
     listCameraDevices(): Promise<ReadonlyArray<Readonly<CameraDevice>>>;
     selectCamera(selection: CameraSelection): Promise<void>;
     getCameraSelection(): CameraSelection;

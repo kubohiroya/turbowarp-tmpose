@@ -40,9 +40,13 @@ function createFile(bytes: Uint8Array, name: string, type: string): File {
 }
 
 function element(tagName = 'DIV') {
+  const attributes: Record<string, string> = {};
+  const children: any[] = [];
   const value: any = {
     tagName,
     style: {},
+    attributes,
+    children,
     parentElement: null,
     parentNode: null,
     width: tagName === 'CANVAS' ? 480 : undefined,
@@ -51,12 +55,21 @@ function element(tagName = 'DIV') {
     getBoundingClientRect: vi.fn(() => ({
       left: 0, top: 0, right: 480, bottom: 360, width: 480, height: 360
     })),
+    setAttribute(name: string, attributeValue: unknown) {
+      attributes[name] = String(attributeValue);
+    },
+    getAttribute(name: string) {
+      return attributes[name] ?? null;
+    },
     appendChild(child: any) {
+      if (!children.includes(child)) children.push(child);
       child.parentElement = value;
       child.parentNode = value;
       return child;
     },
     removeChild(child: any) {
+      const index = children.indexOf(child);
+      if (index >= 0) children.splice(index, 1);
       child.parentElement = null;
       child.parentNode = null;
       return child;
@@ -84,6 +97,8 @@ beforeEach(() => {
     head: {appendChild: appendScript},
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
+    createElement: vi.fn((tag: string) => element(tag.toUpperCase())),
+    createElementNS: vi.fn((_namespace: string, tag: string) => element(tag.toUpperCase())),
     querySelector: vi.fn(() => null),
     querySelectorAll: vi.fn(() => [])
   });
@@ -768,6 +783,56 @@ describe('TMPose composition API', () => {
     );
     await composition.releaseAll();
     expect(() => composition.setPreviewMirroring('mirrored')).toThrow(
+      expect.objectContaining({code: 'TMPOSE-COMPOSITION-007'})
+    );
+  });
+
+  it('configures and validates the public SVG pose overlay API', async () => {
+    const composition = createTMPoseComposition({
+      runtime: {Webcam: class {}, loadFromFiles: vi.fn()},
+      createFile
+    });
+
+    expect(composition.isPoseOverlayVisible()).toBe(true);
+    composition.hidePoseOverlay();
+    expect(composition.isPoseOverlayVisible()).toBe(false);
+    composition.showPoseOverlay();
+    composition.setPoseJointStyle('leftWrist', {
+      color: '#ff00aa', opacity: 0.75, radius: 8
+    });
+    composition.setPoseBoneStyle({color: 'rgb(0 255 0)', opacity: 0.5, width: 4});
+    composition.setPoseOverlayMinimumConfidence(0.25);
+    composition.setPoseOverlayConfidenceScaling({
+      jointOpacity: true,
+      jointRadius: false,
+      boneOpacity: true,
+      boneWidth: false
+    });
+
+    const invalidCalls = [
+      () => composition.setPoseJointStyle('neck' as never, {
+        color: 'red', opacity: 1, radius: 1
+      }),
+      () => composition.setPoseJointStyle('nose', {
+        color: '', opacity: 1, radius: 1
+      }),
+      () => composition.setPoseJointStyle('nose', {
+        color: 'red', opacity: 1.1, radius: 1
+      }),
+      () => composition.setPoseBoneStyle({color: 'red', opacity: 1, width: -1}),
+      () => composition.setPoseOverlayMinimumConfidence(Number.NaN),
+      () => composition.setPoseOverlayConfidenceScaling({
+        jointOpacity: true,
+        jointRadius: false,
+        boneOpacity: true
+      } as never)
+    ];
+    for (const call of invalidCalls) {
+      expect(call).toThrow(expect.objectContaining({code: 'TMPOSE-COMPOSITION-016'}));
+    }
+
+    await composition.releaseAll();
+    expect(() => composition.showPoseOverlay()).toThrow(
       expect.objectContaining({code: 'TMPOSE-COMPOSITION-007'})
     );
   });

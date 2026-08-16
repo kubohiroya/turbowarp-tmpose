@@ -1,4 +1,5 @@
 import { type FeatureFlags } from './config/feature-flags.js';
+import { type PoseOverlayConfidenceProperty } from './pose-overlay.js';
 export declare const EXTENSION_ID = "tmpose";
 export declare const VERSION: string;
 export declare const DOCS_URI = "https://kubohiroya.github.io/turbowarp-tmpose/";
@@ -67,6 +68,27 @@ export declare class TMPoseExtension {
                     value: string;
                 }[];
             };
+            poseOverlayVisibilityMenu: {
+                acceptReporters: boolean;
+                items: {
+                    text: any;
+                    value: string;
+                }[];
+            };
+            poseKeypointMenu: {
+                acceptReporters: boolean;
+                items: {
+                    text: "nose" | "leftEye" | "rightEye" | "leftEar" | "rightEar" | "leftShoulder" | "rightShoulder" | "leftElbow" | "rightElbow" | "leftWrist" | "rightWrist" | "leftHip" | "rightHip" | "leftKnee" | "rightKnee" | "leftAnkle" | "rightAnkle";
+                    value: "nose" | "leftEye" | "rightEye" | "leftEar" | "rightEar" | "leftShoulder" | "rightShoulder" | "leftElbow" | "rightElbow" | "leftWrist" | "rightWrist" | "leftHip" | "rightHip" | "leftKnee" | "rightKnee" | "leftAnkle" | "rightAnkle";
+                }[];
+            };
+            poseConfidencePropertyMenu: {
+                acceptReporters: boolean;
+                items: {
+                    text: any;
+                    value: PoseOverlayConfidenceProperty;
+                }[];
+            };
             cameraMenu: {
                 acceptReporters: boolean;
                 items: string;
@@ -103,6 +125,14 @@ export declare class TMPoseExtension {
     setPreviewPosition(args: any): void;
     setPreviewMirroring(args: any): void;
     previewMirroringReporter(): "mirrored" | "unmirrored";
+    setPoseOverlayVisibility(args: any): void;
+    showPoseOverlay(): void;
+    hidePoseOverlay(): void;
+    isPoseOverlayVisible(): any;
+    setPoseJointStyle(args: any): void;
+    setPoseBoneStyle(args: any): void;
+    setPoseOverlayMinimumConfidence(args: any): void;
+    setPoseConfidenceScaling(args: any): void;
     loadModel(): Promise<void>;
     isModelLoaded(): boolean;
     usePreparedModel(model: any): void;
@@ -113,6 +143,12 @@ export declare class TMPoseExtension {
     findStageElement(): Element;
     findLikelyStageCanvas(): HTMLCanvasElement;
     validatePreviewAttachment(stage: any, canvas: any): void;
+    createSvgElement(name: string): SVGElement;
+    ensurePoseOverlayElement(): SVGSVGElement | null;
+    updatePoseOverlayVisibility(): void;
+    clearPoseOverlay(): void;
+    redrawPoseOverlay(): void;
+    renderPoseOverlay(keypoints: unknown): void;
     attachPreviewToStage(): void;
     updatePreviewStyle(): void;
     startLoopIfNeeded(): void;

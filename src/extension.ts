@@ -1,5 +1,17 @@
 import definitions from './block-definitions.json' with {type: 'json'};
 import {FEATURE_FLAGS, type FeatureFlags} from './config/feature-flags.js';
+import {
+  confidenceMultiplier,
+  DEFAULT_POSE_BONE_STYLE,
+  DEFAULT_POSE_JOINT_STYLE,
+  DEFAULT_POSE_OVERLAY_CONFIDENCE_SCALING,
+  isPoseKeypointName,
+  POSE_BONE_CONNECTIONS,
+  POSE_KEYPOINT_NAMES,
+  type PoseKeypointName,
+  type PoseOverlayConfidenceProperty,
+  type PoseOverlayKeypoint
+} from './pose-overlay.js';
 import packageMetadata from '../package.json' with {type: 'json'};
 
 export const EXTENSION_ID = 'tmpose';
@@ -64,6 +76,32 @@ const PREVIEW_MIRRORING_ALIASES: Record<string, boolean> = {
   'そのまま': false
 };
 
+const POSE_OVERLAY_VISIBILITY_ITEMS = [
+  {text: 'on', value: 'on'},
+  {text: 'off', value: 'off'}
+];
+
+const POSE_OVERLAY_VISIBILITY_ALIASES: Record<string, boolean> = {
+  on: true,
+  off: false,
+  show: true,
+  hide: false,
+  true: true,
+  false: false,
+  表示: true,
+  非表示: false
+};
+
+const POSE_CONFIDENCE_PROPERTY_ITEMS: ReadonlyArray<{
+  text: string;
+  value: PoseOverlayConfidenceProperty;
+}> = [
+  {text: 'joint opacity', value: 'joint-opacity'},
+  {text: 'joint radius', value: 'joint-radius'},
+  {text: 'bone opacity', value: 'bone-opacity'},
+  {text: 'bone width', value: 'bone-width'}
+];
+
 const CAMERA_SELECTION_ITEMS = [
   {text: 'default camera', value: 'default'},
   {text: 'front camera', value: 'front'},
@@ -105,6 +143,21 @@ function normalizeCameraSelection(value: unknown): ResolvedCameraSelection {
     return {kind: 'preference', value: normalized};
   }
   return {kind: 'device', value: selection};
+}
+
+function normalizePoseOverlayVisibility(value: unknown): boolean {
+  return POSE_OVERLAY_VISIBILITY_ALIASES[String(value ?? 'on').trim().toLowerCase()] ?? true;
+}
+
+function normalizePoseStyleNumber(value: unknown, fallback: number, maximum?: number): number {
+  const number = value === '' ? fallback : Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(0, maximum === undefined ? number : Math.min(maximum, number));
+}
+
+function normalizePoseColor(value: unknown, fallback: string): string {
+  const color = String(value ?? '').trim();
+  return color || fallback;
 }
 
 function cameraConstraints(selection: ResolvedCameraSelection): MediaTrackConstraints | undefined {
@@ -243,6 +296,17 @@ export class TMPoseExtension {
     this.previewVisible = true;
     this.previewCanvas = null;
     this.previewStageElement = null;
+    this.poseOverlayVisible = true;
+    this.poseOverlayMinimumConfidence = 0.5;
+    this.poseJointStyles = Object.fromEntries(
+      POSE_KEYPOINT_NAMES.map((part) => [part, {...DEFAULT_POSE_JOINT_STYLE}])
+    );
+    this.poseBoneStyle = {...DEFAULT_POSE_BONE_STYLE};
+    this.poseConfidenceScaling = {...DEFAULT_POSE_OVERLAY_CONFIDENCE_SCALING};
+    this.poseOverlaySvg = null;
+    this.poseOverlayJointElements = new Map();
+    this.poseOverlayBoneElements = [];
+    this.latestPoseKeypoints = [];
     this.cameraMs = 0;
     this.modelLoadMs = 0;
     this.firstPredictMs = 0;
@@ -287,6 +351,24 @@ export class TMPoseExtension {
           acceptReporters: true,
           items: PREVIEW_MIRRORING_ITEMS.map((item) => ({text: Scratch.translate(item.text), value: item.value}))
         },
+        poseOverlayVisibilityMenu: {
+          acceptReporters: true,
+          items: POSE_OVERLAY_VISIBILITY_ITEMS.map((item) => ({
+            text: Scratch.translate(item.text),
+            value: item.value
+          }))
+        },
+        poseKeypointMenu: {
+          acceptReporters: true,
+          items: POSE_KEYPOINT_NAMES.map((part) => ({text: part, value: part}))
+        },
+        poseConfidencePropertyMenu: {
+          acceptReporters: true,
+          items: POSE_CONFIDENCE_PROPERTY_ITEMS.map((item) => ({
+            text: Scratch.translate(item.text),
+            value: item.value
+          }))
+        },
         cameraMenu: {
           acceptReporters: true,
           items: 'getCameraMenuItems'
@@ -327,8 +409,13 @@ export class TMPoseExtension {
       video.srcObject = null;
     }
     this.previewCanvas?.parentNode?.removeChild(this.previewCanvas);
+    this.poseOverlaySvg?.parentNode?.removeChild(this.poseOverlaySvg);
     this.previewCanvas = null;
     this.previewStageElement = null;
+    this.poseOverlaySvg = null;
+    this.poseOverlayJointElements = new Map();
+    this.poseOverlayBoneElements = [];
+    this.latestPoseKeypoints = [];
     this.webcam = null;
     this.cameraRunning = false;
     this.activeCameraDeviceId = '';
@@ -499,6 +586,7 @@ export class TMPoseExtension {
       if (!this.webcam?.canvas) throw new Error('TMPose: Start the camera before showing the preview.');
       this.attachPreviewToStage();
       this.previewCanvas.style.display = 'block';
+      this.updatePoseOverlayVisibility();
       this.validatePreviewAttachment(this.previewStageElement, this.previewCanvas);
     } catch (error) {
       this.setLastError(error);
@@ -509,6 +597,7 @@ export class TMPoseExtension {
   hidePreview() {
     this.previewVisible = false;
     if (this.previewCanvas) this.previewCanvas.style.display = 'none';
+    this.updatePoseOverlayVisibility();
   }
 
   isPreviewVisible() { return this.previewVisible; }
@@ -535,6 +624,68 @@ export class TMPoseExtension {
 
   previewMirroringReporter() {
     return this.previewMirrored ? 'mirrored' : 'unmirrored';
+  }
+
+  setPoseOverlayVisibility(args) {
+    this.poseOverlayVisible = normalizePoseOverlayVisibility(args.VISIBILITY);
+    this.updatePoseOverlayVisibility();
+  }
+
+  showPoseOverlay() {
+    this.poseOverlayVisible = true;
+    this.updatePoseOverlayVisibility();
+  }
+
+  hidePoseOverlay() {
+    this.poseOverlayVisible = false;
+    this.updatePoseOverlayVisibility();
+  }
+
+  isPoseOverlayVisible() {
+    return this.featureFlags.poseOverlay && this.poseOverlayVisible;
+  }
+
+  setPoseJointStyle(args) {
+    const part = String(args.PART ?? '') as PoseKeypointName;
+    if (!isPoseKeypointName(part)) throw new Error(`TMPose: Unknown PoseNet joint: ${part}`);
+    const previous = this.poseJointStyles[part];
+    this.poseJointStyles[part] = {
+      color: normalizePoseColor(args.COLOR, previous.color),
+      opacity: normalizePoseStyleNumber(args.OPACITY, previous.opacity, 1),
+      radius: normalizePoseStyleNumber(args.RADIUS, previous.radius)
+    };
+    this.redrawPoseOverlay();
+  }
+
+  setPoseBoneStyle(args) {
+    this.poseBoneStyle = {
+      color: normalizePoseColor(args.COLOR, this.poseBoneStyle.color),
+      opacity: normalizePoseStyleNumber(args.OPACITY, this.poseBoneStyle.opacity, 1),
+      width: normalizePoseStyleNumber(args.WIDTH, this.poseBoneStyle.width)
+    };
+    this.redrawPoseOverlay();
+  }
+
+  setPoseOverlayMinimumConfidence(args) {
+    this.poseOverlayMinimumConfidence = normalizePoseStyleNumber(
+      args.CONFIDENCE,
+      this.poseOverlayMinimumConfidence,
+      1
+    );
+    this.redrawPoseOverlay();
+  }
+
+  setPoseConfidenceScaling(args) {
+    const property = String(args.PROPERTY ?? '') as PoseOverlayConfidenceProperty;
+    const key = {
+      'joint-opacity': 'jointOpacity',
+      'joint-radius': 'jointRadius',
+      'bone-opacity': 'boneOpacity',
+      'bone-width': 'boneWidth'
+    }[property];
+    if (!key) throw new Error(`TMPose: Unknown confidence-scaled property: ${property}`);
+    this.poseConfidenceScaling[key] = normalizePoseOverlayVisibility(args.STATE);
+    this.redrawPoseOverlay();
   }
 
   async loadModel() {
@@ -604,6 +755,7 @@ export class TMPoseExtension {
     this.currentPoseName = '';
     this.score = 0;
     this.predictions = {};
+    this.clearPoseOverlay();
     this.resetAccumulatedPose('stop');
   }
 
@@ -681,6 +833,142 @@ export class TMPoseExtension {
     }
   }
 
+  createSvgElement(name: string): SVGElement {
+    if (typeof document.createElementNS === 'function') {
+      return document.createElementNS('http://www.w3.org/2000/svg', name);
+    }
+    return document.createElement(name) as unknown as SVGElement;
+  }
+
+  ensurePoseOverlayElement(): SVGSVGElement | null {
+    if (!this.featureFlags.poseOverlay) return null;
+    if (this.poseOverlaySvg) return this.poseOverlaySvg;
+
+    const svg = this.createSvgElement('svg') as SVGSVGElement;
+    svg.setAttribute('viewBox', '0 0 320 240');
+    svg.setAttribute('width', '320');
+    svg.setAttribute('height', '240');
+    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+
+    const boneGroup = this.createSvgElement('g');
+    boneGroup.setAttribute('data-layer', 'bones');
+    this.poseOverlayBoneElements = POSE_BONE_CONNECTIONS.map(([first, second]) => {
+      const line = this.createSvgElement('line') as SVGLineElement;
+      line.setAttribute('data-bone', `${first}-${second}`);
+      line.setAttribute('stroke-linecap', 'round');
+      line.style.display = 'none';
+      boneGroup.appendChild(line);
+      return {first, second, line};
+    });
+    svg.appendChild(boneGroup);
+
+    const jointGroup = this.createSvgElement('g');
+    jointGroup.setAttribute('data-layer', 'joints');
+    this.poseOverlayJointElements = new Map();
+    for (const part of POSE_KEYPOINT_NAMES) {
+      const circle = this.createSvgElement('circle') as SVGCircleElement;
+      circle.setAttribute('data-joint', part);
+      circle.style.display = 'none';
+      jointGroup.appendChild(circle);
+      this.poseOverlayJointElements.set(part, circle);
+    }
+    svg.appendChild(jointGroup);
+    this.poseOverlaySvg = svg;
+    return svg;
+  }
+
+  updatePoseOverlayVisibility() {
+    if (!this.poseOverlaySvg) return;
+    this.poseOverlaySvg.style.display =
+      this.previewVisible && this.poseOverlayVisible ? 'block' : 'none';
+  }
+
+  clearPoseOverlay() {
+    this.latestPoseKeypoints = [];
+    for (const circle of this.poseOverlayJointElements.values()) {
+      circle.style.display = 'none';
+    }
+    for (const {line} of this.poseOverlayBoneElements) line.style.display = 'none';
+  }
+
+  redrawPoseOverlay() {
+    if (this.latestPoseKeypoints.length > 0) {
+      this.renderPoseOverlay(this.latestPoseKeypoints);
+    }
+  }
+
+  renderPoseOverlay(keypoints: unknown) {
+    if (!this.featureFlags.poseOverlay || !this.poseOverlaySvg || !Array.isArray(keypoints)) {
+      this.clearPoseOverlay();
+      return;
+    }
+    this.latestPoseKeypoints = keypoints;
+    const recognized = new Map<PoseKeypointName, PoseOverlayKeypoint>();
+    for (const candidate of keypoints) {
+      if (
+        typeof candidate !== 'object' ||
+        candidate === null ||
+        !isPoseKeypointName((candidate as PoseOverlayKeypoint).part)
+      ) {
+        continue;
+      }
+      const keypoint = candidate as PoseOverlayKeypoint;
+      const x = Number(keypoint.position?.x);
+      const y = Number(keypoint.position?.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      recognized.set(keypoint.part as PoseKeypointName, {
+        part: keypoint.part,
+        score: confidenceMultiplier(keypoint.score),
+        position: {x, y}
+      });
+    }
+
+    for (const part of POSE_KEYPOINT_NAMES) {
+      const circle = this.poseOverlayJointElements.get(part);
+      const keypoint = recognized.get(part);
+      if (!circle || !keypoint || keypoint.score < this.poseOverlayMinimumConfidence) {
+        if (circle) circle.style.display = 'none';
+        continue;
+      }
+      const style = this.poseJointStyles[part];
+      const opacityMultiplier = this.poseConfidenceScaling.jointOpacity ? keypoint.score : 1;
+      const radiusMultiplier = this.poseConfidenceScaling.jointRadius ? keypoint.score : 1;
+      circle.setAttribute('cx', String(keypoint.position.x));
+      circle.setAttribute('cy', String(keypoint.position.y));
+      circle.setAttribute('r', String(style.radius * radiusMultiplier));
+      circle.setAttribute('fill', style.color);
+      circle.setAttribute('fill-opacity', String(style.opacity * opacityMultiplier));
+      circle.style.display = 'block';
+    }
+
+    for (const {first, second, line} of this.poseOverlayBoneElements) {
+      const firstKeypoint = recognized.get(first);
+      const secondKeypoint = recognized.get(second);
+      if (
+        !firstKeypoint ||
+        !secondKeypoint ||
+        firstKeypoint.score < this.poseOverlayMinimumConfidence ||
+        secondKeypoint.score < this.poseOverlayMinimumConfidence
+      ) {
+        line.style.display = 'none';
+        continue;
+      }
+      const confidence = Math.min(firstKeypoint.score, secondKeypoint.score);
+      const opacityMultiplier = this.poseConfidenceScaling.boneOpacity ? confidence : 1;
+      const widthMultiplier = this.poseConfidenceScaling.boneWidth ? confidence : 1;
+      line.setAttribute('x1', String(firstKeypoint.position.x));
+      line.setAttribute('y1', String(firstKeypoint.position.y));
+      line.setAttribute('x2', String(secondKeypoint.position.x));
+      line.setAttribute('y2', String(secondKeypoint.position.y));
+      line.setAttribute('stroke', this.poseBoneStyle.color);
+      line.setAttribute('stroke-opacity', String(this.poseBoneStyle.opacity * opacityMultiplier));
+      line.setAttribute('stroke-width', String(this.poseBoneStyle.width * widthMultiplier));
+      line.style.display = 'block';
+    }
+  }
+
   attachPreviewToStage() {
     if (!this.webcam) throw new Error('TMPose: Start the camera before attaching the preview.');
     if (!this.webcam.canvas) throw new Error('TMPose: webcam.canvas is unavailable.');
@@ -695,6 +983,7 @@ export class TMPoseExtension {
     }
     this.previewCanvas = canvas;
     this.previewStageElement = stage;
+    const overlay = this.ensurePoseOverlayElement();
     const computed = window.getComputedStyle(stage);
     if (computed.position === 'static') stage.style.position = 'relative';
     stage.style.overflow = 'hidden';
@@ -704,37 +993,80 @@ export class TMPoseExtension {
       background: '#000', opacity: String(this.previewOpacity),
       display: this.previewVisible ? 'block' : 'none', boxSizing: 'border-box'
     });
+    if (overlay) {
+      Object.assign(overlay.style, {
+        position: 'absolute',
+        zIndex: 'auto',
+        pointerEvents: 'none',
+        border: '2px solid transparent',
+        background: 'transparent',
+        display: this.previewVisible && this.poseOverlayVisible ? 'block' : 'none',
+        boxSizing: 'border-box',
+        overflow: 'hidden'
+      });
+    }
+    let insertionPoint = stageCanvas?.nextSibling ?? null;
+    while (insertionPoint && (insertionPoint === canvas || insertionPoint === overlay)) {
+      insertionPoint = insertionPoint.nextSibling;
+    }
     if (stageCanvas && typeof stage.insertBefore === 'function') {
-      stage.insertBefore(canvas, stageCanvas.nextSibling);
+      stage.insertBefore(canvas, insertionPoint);
     } else if (canvas.parentNode !== stage) {
       stage.appendChild(canvas);
     }
+    if (overlay) {
+      if (stageCanvas && typeof stage.insertBefore === 'function') {
+        stage.insertBefore(overlay, insertionPoint);
+      } else if (overlay.parentNode !== stage) {
+        stage.appendChild(overlay);
+      }
+    }
     this.updatePreviewStyle();
+    this.updatePoseOverlayVisibility();
     this.validatePreviewAttachment(stage, canvas);
   }
 
   updatePreviewStyle() {
     const canvas = this.previewCanvas;
     if (!canvas) throw new Error('TMPose: Start the camera before positioning the preview.');
-    Object.assign(canvas.style, {
-      left: '', right: '', top: '', bottom: '', transform: '', objectFit: '',
-      width: '35%', height: 'auto', borderRadius: '8px'
-    });
+    const targets = [canvas, this.poseOverlaySvg].filter(Boolean);
+    for (const target of targets) {
+      Object.assign(target.style, {
+        left: '', right: '', top: '', bottom: '', transform: '', objectFit: '',
+        width: '35%', height: 'auto', borderRadius: '8px'
+      });
+    }
     let positionTransform = '';
     switch (this.previewPosition) {
-      case 'top-left': canvas.style.left = '8px'; canvas.style.top = '8px'; break;
-      case 'top-right': canvas.style.right = '8px'; canvas.style.top = '8px'; break;
-      case 'bottom-left': canvas.style.left = '8px'; canvas.style.bottom = '8px'; break;
+      case 'top-left':
+        for (const target of targets) { target.style.left = '8px'; target.style.top = '8px'; }
+        break;
+      case 'top-right':
+        for (const target of targets) { target.style.right = '8px'; target.style.top = '8px'; }
+        break;
+      case 'bottom-left':
+        for (const target of targets) { target.style.left = '8px'; target.style.bottom = '8px'; }
+        break;
       case 'center':
-        canvas.style.left = '50%'; canvas.style.top = '50%';
+        for (const target of targets) { target.style.left = '50%'; target.style.top = '50%'; }
         positionTransform = 'translate(-50%, -50%)'; break;
       case 'full-stage':
-        canvas.style.left = '0'; canvas.style.top = '0'; canvas.style.width = '100%';
-        canvas.style.height = '100%'; canvas.style.objectFit = 'cover'; canvas.style.borderRadius = '0'; break;
-      default: canvas.style.right = '8px'; canvas.style.bottom = '8px';
+        for (const target of targets) {
+          target.style.left = '0'; target.style.top = '0'; target.style.width = '100%';
+          target.style.height = '100%'; target.style.objectFit = 'cover'; target.style.borderRadius = '0';
+        }
+        break;
+      default:
+        for (const target of targets) { target.style.right = '8px'; target.style.bottom = '8px'; }
     }
     const mirroringTransform = this.previewMirrored ? '' : 'scaleX(-1)';
-    canvas.style.transform = [positionTransform, mirroringTransform].filter(Boolean).join(' ');
+    for (const target of targets) {
+      target.style.transform = [positionTransform, mirroringTransform].filter(Boolean).join(' ');
+    }
+    this.poseOverlaySvg?.setAttribute(
+      'preserveAspectRatio',
+      this.previewPosition === 'full-stage' ? 'xMidYMid slice' : 'xMidYMid meet'
+    );
   }
 
   startLoopIfNeeded() {
@@ -779,11 +1111,12 @@ export class TMPoseExtension {
         const model = this.model;
         const first = this.firstPredictMs === 0;
         const startedAt = first ? performance.now() : 0;
-        const prediction = await this.trackPreparedModelOperation(
+        const recognition = await this.trackPreparedModelOperation(
           model,
           (async () => {
             const estimate = await model.estimatePose(this.webcam.canvas);
-            return model.predict(estimate.posenetOutput);
+            const prediction = await model.predict(estimate.posenetOutput);
+            return {keypoints: estimate.pose?.keypoints, prediction};
           })()
         );
         if (
@@ -795,16 +1128,17 @@ export class TMPoseExtension {
           // The old result is stale, but a still-running camera keeps its frame loop alive.
         } else {
           if (first) this.firstPredictMs = Math.round(performance.now() - startedAt);
+          this.renderPoseOverlay(recognition.keypoints);
           let best = {className: '', probability: 0};
           this.predictions = {};
-          for (const result of prediction) {
+          for (const result of recognition.prediction) {
             this.predictions[result.className] = result.probability;
             if (result.probability > best.probability) best = result;
           }
           this.currentPoseName = best.className;
           this.score = best.probability;
           if (this.featureFlags.temporalPoseScoring) {
-            this.updateAccumulatedPose(prediction);
+            this.updateAccumulatedPose(recognition.prediction);
           }
         }
       }

@@ -1,6 +1,19 @@
 import {TMPoseExtension, type AccumulatedPoseChangedEventV1} from './extension.js';
+import {
+  isPoseKeypointName,
+  type PoseBoneStyle,
+  type PoseJointStyle,
+  type PoseKeypointName,
+  type PoseOverlayConfidenceScaling
+} from './pose-overlay.js';
 
 export type {AccumulatedPoseChangedEventV1} from './extension.js';
+export type {
+  PoseBoneStyle,
+  PoseJointStyle,
+  PoseKeypointName,
+  PoseOverlayConfidenceScaling
+} from './pose-overlay.js';
 
 export interface TMPoseCompositionRuntime {
   Webcam: new (width: number, height: number, flipHorizontal: boolean) => unknown;
@@ -76,6 +89,13 @@ export interface TMPoseComposition {
   setPreviewOpacity(opacity: number): void;
   setPreviewPosition(position: PreviewPosition): void;
   setPreviewMirroring(mode: PreviewMirroring): void;
+  showPoseOverlay(): void;
+  hidePoseOverlay(): void;
+  isPoseOverlayVisible(): boolean;
+  setPoseJointStyle(part: PoseKeypointName, style: PoseJointStyle): void;
+  setPoseBoneStyle(style: PoseBoneStyle): void;
+  setPoseOverlayMinimumConfidence(confidence: number): void;
+  setPoseOverlayConfidenceScaling(options: PoseOverlayConfidenceScaling): void;
   listCameraDevices(): Promise<ReadonlyArray<Readonly<CameraDevice>>>;
   selectCamera(selection: CameraSelection): Promise<void>;
   getCameraSelection(): CameraSelection;
@@ -339,6 +359,103 @@ function validatePreviewOpacity(value: unknown): number {
   return value;
 }
 
+function validatePoseStyleColor(value: unknown, property: string): string {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw compositionError(
+      'TMPOSE-COMPOSITION-016',
+      `Pose overlay ${property} must be a non-empty CSS color string.`
+    );
+  }
+  return value.trim();
+}
+
+function validatePoseStyleNumber(
+  value: unknown,
+  property: string,
+  maximum?: number
+): number {
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    (maximum !== undefined && value > maximum)
+  ) {
+    const range = maximum === undefined ? 'a non-negative finite number' : `from 0 to ${maximum}`;
+    throw compositionError(
+      'TMPOSE-COMPOSITION-016',
+      `Pose overlay ${property} must be ${range}.`
+    );
+  }
+  return value;
+}
+
+function validatePoseKeypointName(value: unknown): PoseKeypointName {
+  if (!isPoseKeypointName(value)) {
+    throw compositionError('TMPOSE-COMPOSITION-016', 'Pose overlay joint name is invalid.');
+  }
+  return value;
+}
+
+function validatePoseJointStyle(value: unknown): PoseJointStyle {
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== 3 ||
+    !Object.hasOwn(value, 'color') ||
+    !Object.hasOwn(value, 'opacity') ||
+    !Object.hasOwn(value, 'radius')
+  ) {
+    throw compositionError(
+      'TMPOSE-COMPOSITION-016',
+      'Pose joint style must provide color, opacity, and radius.'
+    );
+  }
+  return {
+    color: validatePoseStyleColor(value.color, 'joint color'),
+    opacity: validatePoseStyleNumber(value.opacity, 'joint opacity', 1),
+    radius: validatePoseStyleNumber(value.radius, 'joint radius')
+  };
+}
+
+function validatePoseBoneStyle(value: unknown): PoseBoneStyle {
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== 3 ||
+    !Object.hasOwn(value, 'color') ||
+    !Object.hasOwn(value, 'opacity') ||
+    !Object.hasOwn(value, 'width')
+  ) {
+    throw compositionError(
+      'TMPOSE-COMPOSITION-016',
+      'Pose bone style must provide color, opacity, and width.'
+    );
+  }
+  return {
+    color: validatePoseStyleColor(value.color, 'bone color'),
+    opacity: validatePoseStyleNumber(value.opacity, 'bone opacity', 1),
+    width: validatePoseStyleNumber(value.width, 'bone width')
+  };
+}
+
+function validatePoseOverlayConfidenceScaling(value: unknown): PoseOverlayConfidenceScaling {
+  const keys = ['jointOpacity', 'jointRadius', 'boneOpacity', 'boneWidth'] as const;
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== keys.length ||
+    keys.some((key) => !Object.hasOwn(value, key) || typeof value[key] !== 'boolean')
+  ) {
+    throw compositionError(
+      'TMPOSE-COMPOSITION-016',
+      'Pose confidence scaling must provide four boolean style options.'
+    );
+  }
+  return {
+    jointOpacity: value.jointOpacity as boolean,
+    jointRadius: value.jointRadius as boolean,
+    boneOpacity: value.boneOpacity as boolean,
+    boneWidth: value.boneWidth as boolean
+  };
+}
+
 function validateCameraSelection(value: unknown): CameraSelection {
   if (value === 'default' || value === 'front' || value === 'back') return value;
   if (
@@ -477,7 +594,7 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
   );
   const accumulatedPoseListeners = new Set<AccumulatedPoseListener>();
   const extension = new TMPoseExtension(
-    {temporalPoseScoring: true, accumulatedPoseEvents: true},
+    {temporalPoseScoring: true, accumulatedPoseEvents: true, poseOverlay: true},
     {
       runtime,
       allowRemoteLibraries: false,
@@ -986,6 +1103,64 @@ export function createTMPoseComposition(options: TMPoseCompositionOptions): TMPo
     setPreviewMirroring(mode) {
       ensureActive();
       extension.setPreviewMirroring({MIRRORING: validatePreviewMirroring(mode)});
+    },
+
+    showPoseOverlay() {
+      ensureActive();
+      extension.showPoseOverlay();
+    },
+
+    hidePoseOverlay() {
+      ensureActive();
+      extension.hidePoseOverlay();
+    },
+
+    isPoseOverlayVisible() {
+      ensureActive();
+      return extension.isPoseOverlayVisible();
+    },
+
+    setPoseJointStyle(part, style) {
+      ensureActive();
+      const normalizedPart = validatePoseKeypointName(part);
+      const normalizedStyle = validatePoseJointStyle(style);
+      extension.setPoseJointStyle({
+        PART: normalizedPart,
+        COLOR: normalizedStyle.color,
+        OPACITY: normalizedStyle.opacity,
+        RADIUS: normalizedStyle.radius
+      });
+    },
+
+    setPoseBoneStyle(style) {
+      ensureActive();
+      const normalizedStyle = validatePoseBoneStyle(style);
+      extension.setPoseBoneStyle({
+        COLOR: normalizedStyle.color,
+        OPACITY: normalizedStyle.opacity,
+        WIDTH: normalizedStyle.width
+      });
+    },
+
+    setPoseOverlayMinimumConfidence(confidence) {
+      ensureActive();
+      extension.setPoseOverlayMinimumConfidence({
+        CONFIDENCE: validatePoseStyleNumber(confidence, 'minimum confidence', 1)
+      });
+    },
+
+    setPoseOverlayConfidenceScaling(options) {
+      ensureActive();
+      const scaling = validatePoseOverlayConfidenceScaling(options);
+      const properties = [
+        ['joint-opacity', scaling.jointOpacity],
+        ['joint-radius', scaling.jointRadius],
+        ['bone-opacity', scaling.boneOpacity],
+        ['bone-width', scaling.boneWidth]
+      ] as const;
+      for (const [property, enabled] of properties) {
+        extension.setPoseConfidenceScaling({PROPERTY: property, STATE: enabled ? 'on' : 'off'});
+      }
     },
 
     async listCameraDevices() {
