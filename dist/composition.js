@@ -8,7 +8,7 @@ const FEATURE_FLAGS = {
   temporalPoseScoring: false,
   accumulatedPoseEvents: false
 };
-const version = "1.10.2";
+const version = "1.10.3";
 const packageMetadata = {
   version
 };
@@ -145,21 +145,11 @@ function canvasScore(width, height) {
 function isDocumentHidden() {
   return typeof document !== "undefined" && document.visibilityState === "hidden";
 }
-function currentTensorFlowBackend() {
-  const runtime = globalThis.tf;
-  if (typeof runtime?.getBackend !== "function") return null;
-  try {
-    const backend = runtime.getBackend();
-    return typeof backend === "string" ? backend : null;
-  } catch {
-    return null;
-  }
-}
-function initializeCameraReadbackContext(canvas, tensorflowBackend = currentTensorFlowBackend()) {
+function initializeCameraReadbackContext(canvas, _tensorflowBackend) {
   if (typeof canvas !== "object" || canvas === null || typeof canvas.getContext !== "function") {
     throw new Error("TMPose: Webcam canvas does not provide a 2D context.");
   }
-  const context = tensorflowBackend === "cpu" ? canvas.getContext("2d", { willReadFrequently: true }) : canvas.getContext("2d");
+  const context = canvas.getContext("2d");
   if (!context) throw new Error("TMPose: Webcam canvas 2D context is unavailable.");
   return context;
 }

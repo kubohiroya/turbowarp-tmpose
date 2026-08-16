@@ -80,21 +80,23 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('initializeCameraReadbackContext', () => {
-  it('requests frequent readback only for the TensorFlow CPU backend', () => {
+  it('uses a normal 2D context for the TensorFlow CPU backend', () => {
     const canvas = createElement('CANVAS');
 
     initializeCameraReadbackContext(canvas, 'cpu');
 
-    expect(canvas.getContext).toHaveBeenCalledWith('2d', {willReadFrequently: true});
+    expect(canvas.getContext).toHaveBeenCalledWith('2d');
   });
 
-  it('uses the active backend reported by the loaded TensorFlow runtime', () => {
+  it('does not query the loaded TensorFlow runtime', () => {
     const canvas = createElement('CANVAS');
-    vi.stubGlobal('tf', {getBackend: vi.fn(() => 'cpu')});
+    const getBackend = vi.fn(() => 'cpu');
+    vi.stubGlobal('tf', {getBackend});
 
     initializeCameraReadbackContext(canvas);
 
-    expect(canvas.getContext).toHaveBeenCalledWith('2d', {willReadFrequently: true});
+    expect(getBackend).not.toHaveBeenCalled();
+    expect(canvas.getContext).toHaveBeenCalledWith('2d');
   });
 
   it.each(['webgl', null])('uses a normal 2D context for the %s backend', (backend) => {
@@ -105,12 +107,14 @@ describe('initializeCameraReadbackContext', () => {
     expect(canvas.getContext).toHaveBeenCalledWith('2d');
   });
 
-  it('falls back to a normal context when the backend query fails', () => {
+  it('ignores a backend query that would fail', () => {
     const canvas = createElement('CANVAS');
-    vi.stubGlobal('tf', {getBackend: vi.fn(() => { throw new Error('not ready'); })});
+    const getBackend = vi.fn(() => { throw new Error('not ready'); });
+    vi.stubGlobal('tf', {getBackend});
 
     initializeCameraReadbackContext(canvas);
 
+    expect(getBackend).not.toHaveBeenCalled();
     expect(canvas.getContext).toHaveBeenCalledWith('2d');
   });
 });
