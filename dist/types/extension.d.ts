@@ -26,10 +26,11 @@ export declare const BROWSER_RUNTIME_URL: string;
 export declare function loadScript(src: string): Promise<void>;
 /**
  * Initialize the camera canvas before Teachable Machine or TensorFlow.js requests its context.
- * TensorFlow's CPU fromPixels() path reads Canvas2D pixels, while the WebGL path uploads the canvas
- * as a texture. The readback hint is therefore limited to CPU so it cannot slow WebGL video draws.
+ * The legacy backend parameter remains accepted for compatibility, but TMPose intentionally uses
+ * the browser's normal Canvas2D context. Its one-draw/one-read camera path does not demonstrate a
+ * repeatable end-to-end benefit from forcing a readback-optimized context.
  */
-export declare function initializeCameraReadbackContext(canvas: unknown, tensorflowBackend?: string | null): CanvasRenderingContext2D;
+export declare function initializeCameraReadbackContext(canvas: unknown, _tensorflowBackend?: string | null): CanvasRenderingContext2D;
 export declare class TMPoseExtension {
     [key: string]: any;
     constructor(featureFlags?: Partial<FeatureFlags>, dependencies?: TMPoseExtensionDependencies);

@@ -179,25 +179,15 @@ function isDocumentHidden(): boolean {
   return typeof document !== 'undefined' && document.visibilityState === 'hidden';
 }
 
-function currentTensorFlowBackend(): string | null {
-  const runtime = globalThis.tf as {getBackend?: () => unknown} | undefined;
-  if (typeof runtime?.getBackend !== 'function') return null;
-  try {
-    const backend = runtime.getBackend();
-    return typeof backend === 'string' ? backend : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Initialize the camera canvas before Teachable Machine or TensorFlow.js requests its context.
- * TensorFlow's CPU fromPixels() path reads Canvas2D pixels, while the WebGL path uploads the canvas
- * as a texture. The readback hint is therefore limited to CPU so it cannot slow WebGL video draws.
+ * The legacy backend parameter remains accepted for compatibility, but TMPose intentionally uses
+ * the browser's normal Canvas2D context. Its one-draw/one-read camera path does not demonstrate a
+ * repeatable end-to-end benefit from forcing a readback-optimized context.
  */
 export function initializeCameraReadbackContext(
   canvas: unknown,
-  tensorflowBackend = currentTensorFlowBackend()
+  _tensorflowBackend?: string | null
 ): CanvasRenderingContext2D {
   if (
     typeof canvas !== 'object' ||
@@ -206,9 +196,7 @@ export function initializeCameraReadbackContext(
   ) {
     throw new Error('TMPose: Webcam canvas does not provide a 2D context.');
   }
-  const context = tensorflowBackend === 'cpu'
-    ? (canvas as HTMLCanvasElement).getContext('2d', {willReadFrequently: true})
-    : (canvas as HTMLCanvasElement).getContext('2d');
+  const context = (canvas as HTMLCanvasElement).getContext('2d');
   if (!context) throw new Error('TMPose: Webcam canvas 2D context is unavailable.');
   return context;
 }
