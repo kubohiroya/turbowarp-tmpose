@@ -75,7 +75,7 @@
     if (!Number.isFinite(confidence)) return 0;
     return Math.max(0, Math.min(1, confidence));
   }
-  const version = "2.0.0";
+  const version = "1.12.0";
   const packageMetadata = {
     version
   };

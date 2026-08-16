@@ -40,4 +40,4 @@ jobs:
           node -e 'const tag = process.env.RELEASE_TAG; const version = require("./package.json").version; if (tag !== `v${version}`) throw new Error(`Tag ${tag} does not match package ${version}.`);'
           test "$(git describe --tags --exact-match)" = "$RELEASE_TAG"
       - run: pnpm check
-      - run: npm publish --access public
+      - run: npm publish --access public --tag latest
