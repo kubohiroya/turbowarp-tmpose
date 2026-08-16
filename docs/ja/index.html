@@ -15,10 +15,10 @@
   <a class="skip-link" href="#main">本文へ移動</a>
   <header class="topbar">
     <div class="topbar-inner">
-      <a class="brand" href="./" aria-label="TMPose 1.10.3日本語ガイドの先頭">
+      <a class="brand" href="./" aria-label="TMPose 1.11.0日本語ガイドの先頭">
         <span class="brand-mark">TM</span>
         <span class="brand-label">TMPose</span>
-        <span class="version-badge" aria-hidden="true">v1.10.3</span>
+        <span class="version-badge" aria-hidden="true">v1.11.0</span>
       </a>
       <nav class="primary-nav" aria-label="ガイドの章">
         <a href="#quick-start">クイックスタート</a>
@@ -94,8 +94,8 @@
         <p>
           <strong>TMPose</strong>見出し直下のドキュメントボタンを押します。集約されたブロックも、
           ここで説明するモデルURL、認識、プレビュー、ラベル、スコア、しきい値、ライフサイクルの
-          動作を保ちます。1.10.3のlatest-neededモデル初期化とキャンセル制御はhost向けAPIなので、
-          Composition APIの章で説明します。
+          動作を保ちます。1.11.0では設定可能なSVGポーズオーバーレイブロックを追加しました。
+          latest-neededモデル初期化とキャンセル制御は引き続きhost向けAPIとしてComposition APIの章で説明します。
         </p>
       </div>
     </section>
@@ -175,6 +175,7 @@
         <article class="detail-card">
           <h3>プレビューはステージ上に表示</h3>
           <p>カメラのキャンバスを TurboWarp のステージ上に重ねて表示します。スプライトにはなりません。また、非表示にしてもモデルへの入力は変わりません。既定は左右反転表示です。カメラの動作中でも <code>mirrored</code> と <code>unmirrored</code> を切り替えられ、認識入力の向きは変わりません。</p>
+          <p>1.11.0では、認識したPoseNetの17関節と標準12ボーンを既定でSVG表示します。表示、関節ごとの色・透明度・半径、ボーン共通の色・透明度・太さ、最小信頼度、各表示属性の信頼度連動をブロックで設定できます。</p>
           <p>TMPoseは、所有するカメラCanvasに通常のCanvas2D contextを使います。物理カメラによる320×240の「1回描画・1回readback」測定では、<code>willReadFrequently</code>によるend-to-endの性能向上を再現できませんでした。このhintは「1回描画・4回以上readback」という別のread-heavy条件では改善しましたが、video描画を遅くする場合があります。そのためCPU推論時にChromeのCanvas2D readback警告が表示されることがあります。他のTurboWarp Canvasは変更せず、host側の全体Canvas patchやConsole patchも不要です。</p>
           <div class="mini-stage" aria-label="ステージの右下にあるプレビュー"><span class="preview-window">カメラ</span></div>
           <div class="position-list" aria-label="プレビューを置ける位置">
@@ -200,7 +201,7 @@
           <p class="eyebrow">Composition host</p>
           <h2 id="composition-hosts-title">物語でまだ必要なモデルだけを準備</h2>
         </div>
-        <p>TMPose 1.10.3では、application hostが不要になったモデル要求をキャンセルしても、カメラ起動は独立して継続できます。最初の推論は、カメラと登録済みモデルの両方を待ちます。</p>
+        <p>TMPose 1.11.0では、application hostが不要になったモデル要求をキャンセルしても、カメラ起動は独立して継続できます。最初の推論は、カメラと登録済みモデルの両方を待ちます。</p>
       </div>
 
       <div class="split-grid">
@@ -309,6 +310,11 @@
             <li><code>set camera preview position to [POSITION]</code></li>
             <li><code>set camera preview to [MIRRORING]</code> · <code>mirrored</code>（左右反転、既定）または <code>unmirrored</code>（そのまま）</li>
             <li><code>camera preview mirroring</code> は現在の設定値を返します。</li>
+            <li><code>set pose overlay [VISIBILITY]</code> · <code>pose overlay is visible?</code></li>
+            <li><code>set [PART] joint color [COLOR] opacity [OPACITY] radius [RADIUS]</code></li>
+            <li><code>set pose bone color [COLOR] opacity [OPACITY] width [WIDTH]</code></li>
+            <li><code>set pose overlay minimum confidence to [CONFIDENCE]</code></li>
+            <li><code>set pose [PROPERTY] confidence scaling [STATE]</code></li>
           </ul>
           <p>カメラ名は利用許可後に初めて表示される場合があります。device ID はブラウザーと端末に固有です。動作中の切り替えでもモデル、認識状態、プレビュー設定を維持し、失敗時は以前のカメラへの復旧を試みます。</p>
         </article>

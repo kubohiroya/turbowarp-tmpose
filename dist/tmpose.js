@@ -16,7 +16,7 @@
   const FEATURE_FLAGS = {
     temporalPoseScoring: false,
     accumulatedPoseEvents: false,
-    poseOverlay: false
+    poseOverlay: true
   };
   const POSE_KEYPOINT_NAMES = [
     "nose",
@@ -75,7 +75,7 @@
     if (!Number.isFinite(confidence)) return 0;
     return Math.max(0, Math.min(1, confidence));
   }
-  const version = "1.10.3";
+  const version = "1.11.0";
   const packageMetadata = {
     version
   };

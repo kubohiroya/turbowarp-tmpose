@@ -50,7 +50,7 @@ with **Run extension without sandbox** enabled.
 The browser-ready, version-pinned build is also available from jsDelivr:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.10.3/dist/tmpose.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.11.0/dist/tmpose.js
 ```
 
 The standalone extension loads one reviewed browser runtime that contains one TensorFlow.js 1.3.1
@@ -58,13 +58,13 @@ module graph together with Teachable Machine Pose 0.8.3. Composite runtimes can 
 same artifact without rewriting a minified third-party bundle:
 
 ```text
-https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.10.3/dist/runtime.js
+https://cdn.jsdelivr.net/npm/@kubohiroya/turbowarp-tmpose@1.11.0/dist/runtime.js
 ```
 
 To add the published package to another project:
 
 ```sh
-pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.10.3
+pnpm add --save-exact @kubohiroya/turbowarp-tmpose@1.11.0
 ```
 
 ### Offline PoseNet bundle API
@@ -347,8 +347,8 @@ project no longer needs it.
 
 ## Optional SVG pose overlay
 
-The `poseOverlay` feature flag is **off by default** for the standalone TurboWarp extension. Builds
-that enable it add blocks for overlay visibility, per-joint circle color/opacity/radius, shared bone
+The `poseOverlay` feature flag is **on by default** for the standalone TurboWarp extension, adding
+blocks for overlay visibility, per-joint circle color/opacity/radius, shared bone
 color/opacity/width, minimum keypoint confidence, and confidence scaling. The overlay uses a
 `320 × 240` SVG coordinate system matching the camera input and follows all six preview positions
 and preview mirroring. The Composition API enables this isolated overlay layer directly.

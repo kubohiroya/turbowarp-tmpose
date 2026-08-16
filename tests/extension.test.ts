@@ -152,12 +152,15 @@ describe('TMPoseExtension', () => {
     expect(iconSvg).not.toContain('<rect');
     expect(new TMPoseExtension().versionReporter()).toBe(VERSION);
     expect(VERSION).toBe(`${packageMetadata.version}-typescript`);
-    expect(info.blocks).toHaveLength(31);
+    expect(info.blocks).toHaveLength(37);
     expect(info.menus.cameraMenu.items).toBe('getCameraMenuItems');
   });
 
   it('exposes accumulated pose blocks only when the feature flag is enabled', () => {
-    const info = new TMPoseExtension({temporalPoseScoring: true}).getInfo() as {
+    const info = new TMPoseExtension({
+      temporalPoseScoring: true,
+      poseOverlay: false
+    }).getInfo() as {
       blocks: Array<{opcode: string}>;
     };
     expect(info.blocks).toHaveLength(37);
@@ -171,9 +174,11 @@ describe('TMPoseExtension', () => {
     ]));
   });
 
-  it('exposes pose overlay blocks and menus only when the feature flag is enabled', () => {
-    const disabled = new TMPoseExtension().getInfo() as {blocks: Array<{opcode: string}>};
-    const enabled = new TMPoseExtension({poseOverlay: true}).getInfo() as {
+  it('exposes pose overlay blocks by default and can disable them with the feature flag', () => {
+    const disabled = new TMPoseExtension({poseOverlay: false}).getInfo() as {
+      blocks: Array<{opcode: string}>;
+    };
+    const enabled = new TMPoseExtension().getInfo() as {
       blocks: Array<{opcode: string}>;
       menus: {
         poseKeypointMenu: {items: Array<{value: string}>};
@@ -181,6 +186,7 @@ describe('TMPoseExtension', () => {
       };
     };
 
+    expect(disabled.blocks).toHaveLength(31);
     expect(disabled.blocks.map((block) => block.opcode)).not.toContain('setPoseJointStyle');
     expect(enabled.blocks).toHaveLength(37);
     expect(enabled.blocks.map((block) => block.opcode)).toEqual(expect.arrayContaining([
