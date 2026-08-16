@@ -12,10 +12,14 @@ import packageMetadata from '../package.json' with {type: 'json'};
 const visibleRect = {left: 0, top: 0, right: 480, bottom: 360, width: 480, height: 360};
 
 function createElement(tagName = 'DIV', rect = visibleRect) {
+  const attributes: Record<string, string> = {};
+  const children: any[] = [];
   const element: any = {
     tagName,
     style: {},
     dataset: {},
+    attributes,
+    children,
     parentElement: null,
     parentNode: null,
     width: tagName === 'CANVAS' ? 480 : undefined,
@@ -24,12 +28,21 @@ function createElement(tagName = 'DIV', rect = visibleRect) {
     getBoundingClientRect: vi.fn(() => rect),
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
+    setAttribute(name: string, value: unknown) {
+      attributes[name] = String(value);
+    },
+    getAttribute(name: string) {
+      return attributes[name] ?? null;
+    },
     appendChild(child: any) {
+      if (!children.includes(child)) children.push(child);
       child.parentElement = element;
       child.parentNode = element;
       return child;
     },
     removeChild(child: any) {
+      const index = children.indexOf(child);
+      if (index >= 0) children.splice(index, 1);
       child.parentElement = null;
       child.parentNode = null;
       return child;
@@ -53,6 +66,7 @@ beforeEach(() => {
     scripts,
     visibilityState: 'visible',
     createElement: vi.fn((tag: string) => createElement(tag.toUpperCase())),
+    createElementNS: vi.fn((_namespace: string, tag: string) => createElement(tag.toUpperCase())),
     head: {appendChild: vi.fn((script: any) => scripts.push(script))},
     addEventListener: vi.fn(),
     querySelector,
@@ -155,6 +169,32 @@ describe('TMPoseExtension', () => {
       'accumulatedScoreReporter',
       'accumulatedPoseScoreReporter'
     ]));
+  });
+
+  it('exposes pose overlay blocks and menus only when the feature flag is enabled', () => {
+    const disabled = new TMPoseExtension().getInfo() as {blocks: Array<{opcode: string}>};
+    const enabled = new TMPoseExtension({poseOverlay: true}).getInfo() as {
+      blocks: Array<{opcode: string}>;
+      menus: {
+        poseKeypointMenu: {items: Array<{value: string}>};
+        poseConfidencePropertyMenu: {items: Array<{value: string}>};
+      };
+    };
+
+    expect(disabled.blocks.map((block) => block.opcode)).not.toContain('setPoseJointStyle');
+    expect(enabled.blocks).toHaveLength(37);
+    expect(enabled.blocks.map((block) => block.opcode)).toEqual(expect.arrayContaining([
+      'setPoseOverlayVisibility',
+      'isPoseOverlayVisible',
+      'setPoseJointStyle',
+      'setPoseBoneStyle',
+      'setPoseOverlayMinimumConfidence',
+      'setPoseConfidenceScaling'
+    ]));
+    expect(enabled.menus.poseKeypointMenu.items).toHaveLength(17);
+    expect(enabled.menus.poseConfidencePropertyMenu.items.map(({value}) => value)).toEqual([
+      'joint-opacity', 'joint-radius', 'bone-opacity', 'bone-width'
+    ]);
   });
 
   it('reports accumulated pose event capability only when both feature flags are enabled', () => {
@@ -499,6 +539,121 @@ describe('TMPoseExtension', () => {
     expect(innerStage.insertBefore).toHaveBeenCalledWith(previewCanvas, null);
     expect(previewCanvas.parentElement).toBe(innerStage);
     expect(monitorWrapper.parentElement).toBe(outerStage);
+  });
+
+  it('renders a configurable SVG pose overlay with confidence-scaled joints and bones', () => {
+    const stage = createElement();
+    const canvas = createElement('CANVAS');
+    const extension = new TMPoseExtension({poseOverlay: true});
+    extension.webcam = {canvas, webcam: {srcObject: null}};
+    vi.spyOn(extension, 'findStageElement').mockReturnValue(stage);
+    extension.attachPreviewToStage();
+
+    const svg = extension.poseOverlaySvg;
+    expect(stage.children).toEqual([canvas, svg]);
+    expect(svg.getAttribute('viewBox')).toBe('0 0 320 240');
+    expect(svg.children[0].getAttribute('data-layer')).toBe('bones');
+    expect(svg.children[1].getAttribute('data-layer')).toBe('joints');
+    expect(extension.poseOverlayJointElements.size).toBe(17);
+    expect(extension.poseOverlayBoneElements).toHaveLength(12);
+
+    extension.setPoseJointStyle({
+      PART: 'leftShoulder', COLOR: '#ff0066', OPACITY: 0.6, RADIUS: 10
+    });
+    extension.setPoseBoneStyle({COLOR: 'lime', OPACITY: 0.8, WIDTH: 6});
+    extension.setPoseOverlayMinimumConfidence({CONFIDENCE: 0.2});
+    for (const property of ['joint-opacity', 'joint-radius', 'bone-opacity', 'bone-width']) {
+      extension.setPoseConfidenceScaling({PROPERTY: property, STATE: 'on'});
+    }
+    extension.renderPoseOverlay([
+      {part: 'leftShoulder', score: 0.5, position: {x: 100, y: 60}},
+      {part: 'leftHip', score: 0.8, position: {x: 105, y: 130}},
+      {part: 'nose', score: 0.1, position: {x: 160, y: 30}}
+    ]);
+
+    const shoulder = extension.poseOverlayJointElements.get('leftShoulder');
+    expect(shoulder.style.display).toBe('block');
+    expect(shoulder.getAttribute('cx')).toBe('100');
+    expect(shoulder.getAttribute('cy')).toBe('60');
+    expect(shoulder.getAttribute('fill')).toBe('#ff0066');
+    expect(Number(shoulder.getAttribute('fill-opacity'))).toBeCloseTo(0.3);
+    expect(Number(shoulder.getAttribute('r'))).toBeCloseTo(5);
+    expect(extension.poseOverlayJointElements.get('nose').style.display).toBe('none');
+
+    const hipShoulder = extension.poseOverlayBoneElements[0].line;
+    expect(hipShoulder.style.display).toBe('block');
+    expect(hipShoulder.getAttribute('stroke')).toBe('lime');
+    expect(Number(hipShoulder.getAttribute('stroke-opacity'))).toBeCloseTo(0.4);
+    expect(Number(hipShoulder.getAttribute('stroke-width'))).toBeCloseTo(3);
+
+    for (const position of [
+      'top-left', 'top-right', 'bottom-left', 'bottom-right', 'center', 'full-stage'
+    ]) {
+      extension.setPreviewPosition({POSITION: position});
+      for (const property of [
+        'left', 'right', 'top', 'bottom', 'width', 'height', 'transform', 'borderRadius', 'objectFit'
+      ]) {
+        expect(svg.style[property]).toBe(canvas.style[property]);
+      }
+      expect(svg.getAttribute('preserveAspectRatio')).toBe(
+        position === 'full-stage' ? 'xMidYMid slice' : 'xMidYMid meet'
+      );
+    }
+
+    extension.setPreviewMirroring({MIRRORING: 'unmirrored'});
+    extension.setPreviewPosition({POSITION: 'full-stage'});
+    expect(svg.style.transform).toBe('scaleX(-1)');
+    expect(svg.style).toMatchObject({left: '0', top: '0', width: '100%', height: '100%'});
+    expect(svg.getAttribute('preserveAspectRatio')).toBe('xMidYMid slice');
+
+    extension.hidePoseOverlay();
+    expect(svg.style.display).toBe('none');
+    expect(canvas.style.display).toBe('block');
+    extension.showPoseOverlay();
+    expect(svg.style.display).toBe('block');
+    extension.hidePreview();
+    expect(svg.style.display).toBe('none');
+    extension.showPreview();
+    expect(svg.style.display).toBe('block');
+
+    extension.stopPredict();
+    expect(shoulder.style.display).toBe('none');
+    expect(hipShoulder.style.display).toBe('none');
+    extension.cleanupCameraResources();
+    expect(stage.children).toEqual([]);
+    expect(extension.poseOverlaySvg).toBeNull();
+  });
+
+  it('routes estimated PoseNet keypoints into the SVG overlay during recognition', async () => {
+    const stage = createElement();
+    const canvas = createElement('CANVAS');
+    const extension = new TMPoseExtension({poseOverlay: true});
+    extension.webcam = {canvas, update: vi.fn()};
+    extension.cameraRunning = true;
+    extension.predicting = true;
+    extension.loopGeneration = 1;
+    extension.model = {
+      estimatePose: vi.fn(async () => ({
+        pose: {
+          keypoints: [
+            {part: 'leftWrist', score: 0.9, position: {x: 42, y: 84}}
+          ]
+        },
+        posenetOutput: new Float32Array([1])
+      })),
+      predict: vi.fn(async () => [{className: 'wave', probability: 0.95}])
+    };
+    vi.spyOn(extension, 'findStageElement').mockReturnValue(stage);
+    extension.attachPreviewToStage();
+
+    await extension.loop(1);
+
+    const wrist = extension.poseOverlayJointElements.get('leftWrist');
+    expect(wrist.style.display).toBe('block');
+    expect(wrist.getAttribute('cx')).toBe('42');
+    expect(wrist.getAttribute('cy')).toBe('84');
+    expect(extension.currentPoseReporter()).toBe('wave');
+    expect(extension.score).toBe(0.95);
   });
 
   it('throws for a zero-size visible preview when stage layout is available', () => {

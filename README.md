@@ -21,6 +21,7 @@ flowchart LR
 - loads a published Teachable Machine Pose model;
 - starts and stops the camera independently from recognition;
 - places a configurable camera preview over the TurboWarp stage;
+- optionally overlays configurable SVG pose joints and bones on that preview;
 - reports the best pose, its confidence, and the confidence of any named pose;
 - tests poses with a fixed or custom confidence threshold;
 - optionally smooths decisions with time-decayed accumulated scores;
@@ -133,6 +134,15 @@ pose.activatePoseModel('RescuePose');
 pose.setPreviewOpacity(0.2);
 pose.setPreviewPosition('full-stage');
 pose.setPreviewMirroring('unmirrored');
+pose.setPoseJointStyle('leftWrist', {color: '#ff00aa', opacity: 0.8, radius: 6});
+pose.setPoseBoneStyle({color: '#00e5ff', opacity: 0.9, width: 3});
+pose.setPoseOverlayMinimumConfidence(0.5);
+pose.setPoseOverlayConfidenceScaling({
+  jointOpacity: true,
+  jointRadius: true,
+  boneOpacity: true,
+  boneWidth: true,
+});
 pose.configureAccumulatedPose({
   accumulationPerSecond: 1,
   decayPerSecond: 0.9,
@@ -195,6 +205,20 @@ startup. `setPreviewPosition()` accepts `top-left`, `top-right`, `bottom-left`, 
 `center`, or `full-stage`. `hidePreview()` and `showPreview()` change only preview visibility; they
 do not stop or restart the camera stream. Use `stopCamera()` when the MediaStream tracks must be
 released.
+
+The composition API enables its SVG pose overlay and exposes `showPoseOverlay()`,
+`hidePoseOverlay()`, and `isPoseOverlayVisible()`. `setPoseJointStyle()` configures the CSS color,
+opacity, and radius for any of the 17 PoseNet joint names. `setPoseBoneStyle()` configures the color,
+opacity, and width shared by the 12 standard PoseNet bone connections. Opacity must be from `0` to
+`1`; radii and widths must be finite and non-negative. `setPoseOverlayMinimumConfidence()` accepts
+`0` through `1` and hides a bone when either endpoint is below the threshold.
+
+`setPoseOverlayConfidenceScaling()` independently controls `jointOpacity`, `jointRadius`,
+`boneOpacity`, and `boneWidth`. An enabled joint property is multiplied by that joint's confidence,
+clamped to `0`–`1`. An enabled bone property is multiplied by the lower confidence of its two
+endpoints. Hiding the overlay does not stop recognition. Hiding the camera preview also hides the
+overlay, while stopping recognition clears every SVG mark and stopping the camera removes the SVG
+element.
 
 `listCameraDevices()` performs a fresh browser enumeration on every call. It returns a deeply
 frozen canonical copy containing only unique, non-empty video device IDs in enumeration order;
@@ -315,11 +339,24 @@ setting does not change the frames used for recognition. The `camera preview mir
 returns the current setting.
 
 - `stop recognition` clears current results but leaves the camera available;
-- `stop camera` also stops recognition, releases the camera tracks, and removes the preview.
+- `stop camera` also stops recognition, releases the camera tracks, and removes the preview and SVG.
 
 TMPose performs pose estimation and classification in the browser and does not upload camera
 frames. It does fetch its runtime libraries and the published model. Stop the camera when the
 project no longer needs it.
+
+## Optional SVG pose overlay
+
+The `poseOverlay` feature flag is **off by default** for the standalone TurboWarp extension. Builds
+that enable it add blocks for overlay visibility, per-joint circle color/opacity/radius, shared bone
+color/opacity/width, minimum keypoint confidence, and confidence scaling. The overlay uses a
+`320 × 240` SVG coordinate system matching the camera input and follows all six preview positions
+and preview mirroring. The Composition API enables this isolated overlay layer directly.
+
+Confidence scaling can be switched independently for joint opacity, joint radius, bone opacity,
+and bone width. Joint properties use the corresponding keypoint confidence; bone properties use
+the smaller confidence of the connected endpoints. This makes every enabled property vary from
+zero through its configured value without changing the recognition classifier input.
 
 ## Optional accumulated pose scoring
 
@@ -518,6 +555,77 @@ Returns mirrored or unmirrored for the current preview setting.
 |---|---|
 | Type | REPORTER |
 | Opcode | `previewMirroringReporter` |
+
+### `set pose overlay [VISIBILITY]`
+
+Shows or hides the SVG pose overlay without stopping recognition.
+
+| Property | Value |
+|---|---|
+| Type | COMMAND |
+| Opcode | `setPoseOverlayVisibility` |
+| Feature flag | `poseOverlay` |
+| `VISIBILITY` | STRING, default: `on`, menu: `poseOverlayVisibilityMenu` |
+
+### `pose overlay is visible?`
+
+Reports whether the SVG pose overlay is configured as visible.
+
+| Property | Value |
+|---|---|
+| Type | BOOLEAN |
+| Opcode | `isPoseOverlayVisible` |
+| Feature flag | `poseOverlay` |
+
+### `set [PART] joint color [COLOR] opacity [OPACITY] radius [RADIUS]`
+
+Sets the SVG circle style for one PoseNet joint.
+
+| Property | Value |
+|---|---|
+| Type | COMMAND |
+| Opcode | `setPoseJointStyle` |
+| Feature flag | `poseOverlay` |
+| `PART` | STRING, default: `nose`, menu: `poseKeypointMenu` |
+| `COLOR` | STRING, default: `#00e5ff` |
+| `OPACITY` | NUMBER, default: `1` |
+| `RADIUS` | NUMBER, default: `4` |
+
+### `set pose bone color [COLOR] opacity [OPACITY] width [WIDTH]`
+
+Sets the color, opacity, and line width for all SVG pose bones.
+
+| Property | Value |
+|---|---|
+| Type | COMMAND |
+| Opcode | `setPoseBoneStyle` |
+| Feature flag | `poseOverlay` |
+| `COLOR` | STRING, default: `#00e5ff` |
+| `OPACITY` | NUMBER, default: `0.9` |
+| `WIDTH` | NUMBER, default: `3` |
+
+### `set pose overlay minimum confidence to [CONFIDENCE]`
+
+Hides joints and bones whose keypoint confidence is below the given value.
+
+| Property | Value |
+|---|---|
+| Type | COMMAND |
+| Opcode | `setPoseOverlayMinimumConfidence` |
+| Feature flag | `poseOverlay` |
+| `CONFIDENCE` | NUMBER, default: `0.5` |
+
+### `set pose [PROPERTY] confidence scaling [STATE]`
+
+Scales the selected SVG style property from zero to its configured value using keypoint confidence.
+
+| Property | Value |
+|---|---|
+| Type | COMMAND |
+| Opcode | `setPoseConfidenceScaling` |
+| Feature flag | `poseOverlay` |
+| `PROPERTY` | STRING, default: `joint-opacity`, menu: `poseConfidencePropertyMenu` |
+| `STATE` | STRING, default: `off`, menu: `poseOverlayVisibilityMenu` |
 
 ### `load model`
 
